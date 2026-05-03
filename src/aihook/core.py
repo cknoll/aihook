@@ -1,8 +1,8 @@
 import code
 import sys
 import io
-import socket
-import struct
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import urllib.parse
 from .release import __version__
 
 class AgenticREPL:
@@ -11,17 +11,8 @@ class AgenticREPL:
         self.console = code.InteractiveConsole(namespace)
         self.stdout_buffer = io.StringIO()
         self.stderr_buffer = io.StringIO()
-        self.server_socket = None
-        self.client_socket = None
-
-    def start_server(self):
-        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.server_socket.bind(('localhost', 5000))
-        self.server_socket.listen(1)
-        print("AgenticREPL: Waiting for agent connection on port 5000...")
-        self.client_socket, addr = self.server_socket.accept()
-        print(f"AgenticREPL: Agent connected from {addr}")
+        self.server = None
+        self.running = False
 
     def execute_command(self, command):
         # Redirect stdout and stderr
@@ -33,6 +24,8 @@ class AgenticREPL:
         try:
             # Push command to InteractiveConsole
             self.console.push(command)
+        except Exception as e:
+            print(f"Exception during command execution: {e}", file=sys.stderr)
         finally:
             # Restore stdout and stderr
             sys.stdout = old_stdout
@@ -51,31 +44,61 @@ class AgenticREPL:
         return stdout_output + stderr_output
 
     def run(self):
-        self.start_server()
-        try:
-            while True:
-                # Receive command from agent
-                data = self.client_socket.recv(4096)
-                if not data:
-                    break
-                command = data.decode('utf-8').strip()
+        self.running = True
+
+        # Define request handler with access to REPL instance
+        repl_instance = self
+
+        class REPLRequestHandler(BaseHTTPRequestHandler):
+            def do_POST(self):
+                # Only handle /execute endpoint
+                if self.path != '/execute':
+                    self.send_response(404)
+                    self.send_header('Content-Type', 'text/plain')
+                    self.end_headers()
+                    self.wfile.write(b"404 Not Found: Only /execute endpoint is supported")
+                    return
+
+                # Read request body
+                content_length = int(self.headers.get('Content-Length', 0))
+                if content_length == 0:
+                    self.send_response(400)
+                    self.send_header('Content-Type', 'text/plain')
+                    self.end_headers()
+                    self.wfile.write(b"400 Bad Request: No command provided")
+                    return
+
+                body = self.rfile.read(content_length).decode('utf-8')
+                command = urllib.parse.unquote_plus(body).strip()
+
+                # Handle exit command
                 if command == "exit()":
-                    exit_msg = "REPL: Exiting\n"
-                    length = len(exit_msg)
-                    self.client_socket.sendall(struct.pack('!I', length))
-                    self.client_socket.sendall(exit_msg.encode('utf-8'))
-                    break
-                else:
-                    output = self.execute_command(command)
-                    # Send length-prefixed output back to agent
-                    length = len(output)
-                    self.client_socket.sendall(struct.pack('!I', length))
-                    self.client_socket.sendall(output.encode('utf-8'))
-        finally:
-            if self.client_socket:
-                self.client_socket.close()
-            if self.server_socket:
-                self.server_socket.close()
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'text/plain')
+                    self.end_headers()
+                    self.wfile.write(b"REPL: Exiting\n")
+                    repl_instance.running = False
+                    repl_instance.server.shutdown()
+                    return
+
+                # Execute command and send response
+                output = repl_instance.execute_command(command)
+                self.send_response(200)
+                self.send_header('Content-Type', 'text/plain')
+                self.end_headers()
+                self.wfile.write(output.encode('utf-8'))
+
+            def log_message(self, format, *args):
+                # Suppress default request logging to keep output clean
+                pass
+
+        # Start HTTP server
+        self.server = HTTPServer(('localhost', 5000), REPLRequestHandler)
+        print("AgenticREPL: HTTP server running on http://localhost:5000/execute")
+        print("AgenticREPL: Waiting for agent commands...")
+        self.server.serve_forever()
+        self.server.server_close()
+        print("AgenticREPL: Server stopped.")
 
 def agent_hook(locals_dict):
     repl = AgenticREPL(locals_dict)
