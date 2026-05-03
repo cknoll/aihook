@@ -24,6 +24,8 @@ Run the test script (or any script using `agent_hook`) in a terminal:
 ```bash
 python tests/the-test-script.py
 ```
+If the script fails with an "Address already in use" error, refer to the [Troubleshooting](#troubleshooting) section.
+
 The script will pause and print:
 ```
 Before hook: complex_var = {'name': 'test_data', 'nested': {'value': 42, 'items': [1, 2, 3, 4]}, 'metadata': {'created': '2026-05-04', 'version': 1.0}}
