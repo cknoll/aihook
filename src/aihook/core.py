@@ -2,6 +2,7 @@ import code
 import sys
 import io
 import socket
+import struct
 from .release import __version__
 
 class AgenticREPL:
@@ -59,11 +60,16 @@ class AgenticREPL:
                     break
                 command = data.decode('utf-8').strip()
                 if command == "exit()":
-                    self.client_socket.sendall(b"REPL: Exiting\n")
+                    exit_msg = "REPL: Exiting\n"
+                    length = len(exit_msg)
+                    self.client_socket.sendall(struct.pack('!I', length))
+                    self.client_socket.sendall(exit_msg.encode('utf-8'))
                     break
                 else:
                     output = self.execute_command(command)
-                    # Send output back to agent
+                    # Send length-prefixed output back to agent
+                    length = len(output)
+                    self.client_socket.sendall(struct.pack('!I', length))
                     self.client_socket.sendall(output.encode('utf-8'))
         finally:
             if self.client_socket:
