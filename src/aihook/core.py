@@ -2,7 +2,6 @@ import code
 import sys
 import io
 from http.server import HTTPServer, BaseHTTPRequestHandler
-import urllib.parse
 from .release import __version__
 
 class AgenticREPL:
@@ -69,7 +68,7 @@ class AgenticREPL:
                     return
 
                 body = self.rfile.read(content_length).decode('utf-8')
-                command = urllib.parse.unquote_plus(body).strip()
+                command = body.strip()
 
                 # Handle exit command
                 if command == "exit()":
@@ -78,7 +77,9 @@ class AgenticREPL:
                     self.end_headers()
                     self.wfile.write(b"REPL: Exiting\n")
                     repl_instance.running = False
-                    repl_instance.server.shutdown()
+                    # Shutdown server in a separate thread to avoid blocking
+                    import threading
+                    threading.Thread(target=repl_instance.server.shutdown).start()
                     return
 
                 # Execute command and send response
