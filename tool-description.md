@@ -8,7 +8,7 @@ The test script `tests/the-test-script.py` demonstrates this workflow: it define
 ## Technical Background
 When `agent_hook(locals_dict)` is called:
 1. An `AgenticREPL` instance is created, which initializes a Python interactive console bound to the script's local namespace.
-2. A lightweight HTTP server is started on `localhost:5000`, with a single endpoint: `POST /execute`.
+2. A lightweight HTTP server is started on `localhost:5000` (with `SO_REUSEADDR` enabled to avoid port conflicts on restart), with a single endpoint: `POST /execute`.
 3. The script pauses execution and waits for HTTP requests containing Python commands to execute.
 4. For each valid `POST /execute` request:
    - The request body contains a URL-encoded Python command string.
@@ -82,3 +82,26 @@ Main: Script finished.
 3. **Error Handling**: If a command raises an exception, the error message will be captured in stderr and returned in the HTTP response body.
 4. **Single Session**: Only one agent session is supported per `agent_hook` call. The server shuts down immediately after receiving the `exit()` command.
 5. **Endpoint Restrictions**: Only `POST /execute` is supported. All other endpoints return a 404 error.
+
+## Troubleshooting
+
+### Port 5000 Already in Use
+If starting the test script results in an `OSError: [Errno 98] Address already in use` error, it means another process is already using port 5000. To resolve this:
+
+1. Check which process is using the port:
+   ```bash
+   ss -tulpn | grep 5000
+   # Alternative using lsof (may require installation)
+   lsof -i:5000
+   ```
+
+2. Stop the existing process:
+   ```bash
+   kill $(lsof -t -i:5000)
+   # If the process does not stop, force kill it:
+   kill -9 $(lsof -t -i:5000)
+   ```
+
+3. Restart the test script.
+
+Note: The server uses `SO_REUSEADDR` to allow faster restarts, but this does not resolve conflicts with active processes already using port 5000.

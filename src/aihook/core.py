@@ -4,6 +4,10 @@ import io
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from .release import __version__
 
+class ReusableHTTPServer(HTTPServer):
+    """HTTP server that allows address reuse to avoid port conflicts on restart."""
+    allow_reuse_address = True
+
 class AgenticREPL:
     def __init__(self, namespace):
         self.namespace = namespace
@@ -94,7 +98,16 @@ class AgenticREPL:
                 pass
 
         # Start HTTP server
-        self.server = HTTPServer(('localhost', 5000), REPLRequestHandler)
+        try:
+            self.server = ReusableHTTPServer(('localhost', 5000), REPLRequestHandler)
+        except OSError as e:
+            if e.errno == 98:  # Address already in use
+                print("Error: Port 5000 is already in use. Please stop the existing server first.")
+                print("To check the process using port 5000: ss -tulpn | grep 5000")
+                print("To stop the process: kill $(lsof -t -i:5000)")
+            else:
+                print(f"Error starting HTTP server: {e}")
+            sys.exit(1)
         print("AgenticREPL: HTTP server running on http://localhost:5000/execute")
         print("AgenticREPL: Waiting for agent commands...")
         self.server.serve_forever()
