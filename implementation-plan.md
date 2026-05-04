@@ -29,7 +29,7 @@ namespace via HTTP.
 - When `namespace is None`, use `inspect.currentframe().f_back` to build a
   namespace from the caller's `f_globals` and `f_locals` (locals override
   globals on key collision).
-- Document the CPython limitation: rebinding a *local* name inside the REPL
+- Document the CPython limitation in SKILL.md: rebinding a *local* name inside the REPL
   does **not** write back to the caller's local variable (fast locals). Mutating
   mutable objects does work. Same limitation as `pdb`.
 
@@ -39,7 +39,7 @@ namespace via HTTP.
   (format `"5001-5101"`) or explicit `port=` argument / `AIHOOK_PORT`.
 - Pick the first free port by trying to bind; skip busy ones.
 - Print **two** lines on startup:
-  - Human-readable: `AgenticREPL: HTTP server running on http://127.0.0.1:<port>/execute`
+  - Human-readable: `AIHOOK AgenticREPL: HTTP server running on http://127.0.0.1:<port>/execute`
   - Machine-parseable: `AIHOOK_PORT=<port>`
 - Bind to `127.0.0.1` only.
 
@@ -57,10 +57,10 @@ namespace via HTTP.
 Implement in `src/aihook/cli.py` using `argparse`. Subcommands / options:
 
 - `aihook '<code>'` — send code to the (single) active session. Error if
-  zero or >1 sessions found and `-p` not given.
-- `aihook -p PORT '<code>'` — target a specific port.
-- `aihook -f FILE` — send contents of FILE as the command.
-- `aihook -` or piping via stdin — read code from stdin when no positional
+  zero or >1 sessions found and `-p` not given. → This convenience feature should not be documented in SKILL.md because agents should always specify the port.
+- `aihook [-p PORT] '<code>'` — target a specific port.
+- `aihook [-p PORT] -f FILE` — send contents of FILE as the command. → document in SKILL.md that this allows agents to reuse testing code snippets (e.g. after changing the "host"-code).
+- `aihook [-p PORT] -` or piping via stdin — read code from stdin when no positional
   arg is given and stdin is not a TTY.
 - `aihook --list` — list active sessions (pid, port, cwd, script).
 - `aihook --exit [-p PORT]` — send `exit()` to a session.
@@ -97,14 +97,13 @@ Create at repo root. Structure:
   from aihook import agent_hook; agent_hook()
   ```
   and the CLI usage: `aihook 'print(x)'`, `aihook --list`, `aihook --exit`.
+- Note: The host-script (containing agent_hook()) needs to be started by the agent and then the agent needs to wait until the host-script reports that the server is ready indicated by the banner ("AIHOOK AgenticREPL") and the "AIHOOK_PORT=..." information.
 - Document the locals-write-back limitation.
-- Show raw `curl` fallback for environments without the CLI.
 - Keep it concise; agents will read it verbatim.
 
 ### 8. Alias
 
-Export `set_trace = agent_hook` from `aihook/__init__.py` for users who prefer
-the `pdb` idiom. Also export `agent_hook`.
+disregarded. We do not want aliases.
 
 ### 9. Graceful shutdown
 
