@@ -10,7 +10,7 @@ from .release import __version__
 
 try:
     from . import core
-    from .core import *
+    from .core import agent_hook, AgenticREPL
 except ImportError:
     import os
     import sys

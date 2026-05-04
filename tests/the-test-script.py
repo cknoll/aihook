@@ -16,8 +16,8 @@ def my_function():
         }
     }
     print("Before hook: complex_var =", complex_var)
-    # Call the agent hook
-    agent_hook(locals())
+    # Call the agent hook (no arguments: caller's namespace is used).
+    agent_hook()
     print("After hook: complex_var =", complex_var)
 
 if __name__ == "__main__":
