@@ -41,29 +41,66 @@ namespace via HTTP.
 - Print **two** lines on startup:
   - Human-readable: `AIHOOK AgenticREPL: HTTP server running on http://127.0.0.1:<port>/execute`
   - Machine-parseable: `AIHOOK_PORT=<port>`
+- Immediately call `sys.stdout.flush()` after these banner lines. Add a
+  short comment explaining why: when the host script's stdout is a pipe
+  (e.g. an agent runner that captures output), Python uses block buffering
+  and the banner would otherwise not be visible to streaming consumers
+  until much later. The lock file is the authoritative discovery channel,
+  but a promptly-flushed banner helps humans and streaming agents.
 - Bind to `127.0.0.1` only.
 
 ### 3. Session discovery
 
-- On startup, write a small JSON file to `~/.cache/aihook/<pid>.json`
-  containing: `pid`, `port`, `cwd`, `start_time`, `script` (best-effort from
-  `sys.argv[0]`).
-- Remove that file on clean shutdown (and best-effort via `atexit`).
-- Provide helper `aihook._sessions.list_sessions()` that returns active
-  sessions (filter out stale entries whose pid no longer exists).
+- On startup, write a YAML lock file `./aihook-lock.yml` in the current
+  working directory (i.e. the cwd of the host script). The file contains:
+  - A leading comment line, e.g.:
+    `# This file (created: {timestamp}) coordinates the client-server connection`
+    `# for the aihook skill. It is safe to delete if no aihook-enabled process`
+    `# is currently running in this directory.`
+  - Keys: `pid`, `port`, `cwd`, `start_time`, `script` (best-effort from
+    `sys.argv[0]`).
+- Before creating the lock file, check whether one already exists in the cwd:
+  - If it exists and its `pid` is still alive, the host script must exit
+    immediately with a clear error message explaining that another aihook
+    session is active in this directory and pointing to the lock file.
+  - If it exists but the pid is stale, overwrite it (and log a note).
+- Remove the lock file on clean shutdown and via `atexit`.
+- Primary discovery mechanism for the CLI: read `./aihook-lock.yml` from the
+  current working directory. The CLI also accepts `--lockfile PATH` to point
+  at an explicit lock file location.
+- Assumption: at most one aihook process per working directory. `--list` is
+  therefore **not** needed for the canonical workflow (but may still be
+  implemented as a debugging convenience that scans a few common locations;
+  optional).
+- Use PyYAML for reading/writing; add it to `requirements.txt`.
 
 ### 4. CLI `aihook`
 
-Implement in `src/aihook/cli.py` using `argparse`. Subcommands / options:
+Implement in `src/aihook/cli.py` using `argparse`. Options:
 
-- `aihook '<code>'` — send code to the (single) active session. Error if
-  zero or >1 sessions found and `-p` not given. → This convenience feature should not be documented in SKILL.md because agents should always specify the port.
+- Port resolution order (first match wins):
+  1. explicit `-p/--port PORT`
+  2. `--lockfile PATH` → read `port` from that YAML file
+  3. `./aihook-lock.yml` in the current working directory
+  If none of these yield a port, error out with a helpful message.
+
+- `aihook '<code>'` — send code to the active session (port resolved as
+  above). → This convenience feature should not be documented in SKILL.md
+  because agents should always specify the port explicitly.
 - `aihook [-p PORT] '<code>'` — target a specific port.
-- `aihook [-p PORT] -f FILE` — send contents of FILE as the command. → document in SKILL.md that this allows agents to reuse testing code snippets (e.g. after changing the "host"-code).
-- `aihook [-p PORT] -` or piping via stdin — read code from stdin when no positional
-  arg is given and stdin is not a TTY.
-- `aihook --list` — list active sessions (pid, port, cwd, script).
+- `aihook [-p PORT] -f FILE` — send contents of FILE as the command. →
+  document in SKILL.md that this allows agents to reuse testing code snippets
+  (e.g. after changing the "host"-code).
+- `aihook [-p PORT] -` or piping via stdin — read code from stdin when no
+  positional arg is given and stdin is not a TTY.
+- `aihook --wait [--timeout SECONDS]` — block until a valid lock file
+  appears (and its pid is alive). Default timeout: 5 seconds. Exit
+  non-zero on timeout. Can be combined with a command: first wait, then send.
 - `aihook --exit [-p PORT]` — send `exit()` to a session.
+- `aihook --lockfile PATH` — use the given lock file instead of the one in
+  cwd.
+- `aihook --list` — optional debugging aid; not part of the canonical
+  workflow, not mentioned in SKILL.md.
 - Exit code: non-zero if the executed code produced stderr output or raised.
 
 Implementation note: use `urllib.request` (stdlib) rather than shelling out to
@@ -92,13 +129,42 @@ Create at repo root. Structure:
 - Name, one-line description.
 - **When to use**: debugging, exploring live state, trying fixes against real
   runtime objects.
-- **How to use (90% case)**: a single code snippet
+- **How to install the hook** in the host script:
   ```python
   from aihook import agent_hook; agent_hook()
   ```
-  and the CLI usage: `aihook 'print(x)'`, `aihook --list`, `aihook --exit`.
-- Note: The host-script (containing agent_hook()) needs to be started by the agent and then the agent needs to wait until the host-script reports that the server is ready indicated by the banner ("AIHOOK AgenticREPL") and the "AIHOOK_PORT=..." information.
-- Document the locals-write-back limitation.
+- **Canonical agent workflow**:
+  1. Start the host script in the background with output redirected to a
+     log file, e.g.:
+     ```bash
+     python path/to/host_script.py > aihook-host.log 2>&1 &
+     ```
+  2. Wait for the server to be ready and discover the port:
+     ```bash
+     aihook --wait
+     ```
+     This blocks until `./aihook-lock.yml` appears (default timeout 5s).
+     Read the `port` field from that file (or let the CLI resolve it
+     automatically).
+  3. Interact using the discovered port:
+     ```bash
+     aihook -p <PORT> 'print(x)'
+     aihook -p <PORT> -f snippet.py
+     ```
+     Document `-f FILE` as the recommended way to reuse testing snippets
+     after editing the host code.
+  4. End the session:
+     ```bash
+     aihook -p <PORT> --exit
+     ```
+- Warn explicitly: **do not run the host script in the foreground** — it
+  will not return until `exit()` is sent, blocking the agent's shell turn.
+- Assumption: at most one aihook process per working directory. If a second
+  host script is started in the same cwd while another is active, it will
+  refuse to start.
+- Document the locals-write-back limitation (CPython fast locals: rebinding
+  a local name inside the REPL does not propagate back to the caller;
+  mutating mutable objects does).
 - Keep it concise; agents will read it verbatim.
 
 ### 8. Alias
@@ -115,16 +181,20 @@ disregarded. We do not want aliases.
 
 Add `tests/test_integration.py`:
 
-- Spawn `tests/the-test-script.py` as a subprocess.
-- Read stdout until the `AIHOOK_PORT=` line appears; parse port.
+- Spawn `tests/the-test-script.py` as a subprocess (in a temporary cwd so
+  the lock file doesn't collide with anything).
+- Use `aihook --wait` (or poll for `./aihook-lock.yml`) to discover the
+  port, rather than parsing the subprocess's stdout.
 - Use the CLI (via `subprocess.run([sys.executable, "-m", "aihook.cli", ...])`
   or by importing the client function directly) to:
   - read a nested value,
   - mutate a list,
-  - call `exit()`.
+  - call `exit()` (via `aihook --exit`).
 - Assert subprocess exits 0 and final stdout reflects the mutation.
+- Assert that `./aihook-lock.yml` is removed after shutdown.
 
-Also add a unit test for `list_sessions()` that fakes a session file.
+Also add a unit test for the lock-file helpers (write/read/stale-pid
+detection) that fakes a lock file in a tmp dir.
 
 ## Non-goals (for this iteration)
 
@@ -135,12 +205,15 @@ Also add a unit test for `list_sessions()` that fakes a session file.
 ## Deliverables checklist
 
 - [ ] `agent_hook()` works with no arguments.
-- [ ] Dynamic port in range 5001–5101, printed as `AIHOOK_PORT=<n>`.
-- [ ] Session file in `~/.cache/aihook/`.
-- [ ] `aihook` CLI with `-p`, `-f`, `--list`, `--exit`, stdin support.
+- [ ] Dynamic port in range 5001–5101, printed as `AIHOOK_PORT=<n>`,
+      followed by `sys.stdout.flush()`.
+- [ ] `./aihook-lock.yml` written on startup (with explanatory comment)
+      and removed on shutdown / via `atexit`.
+- [ ] Host script refuses to start if a live lock file already exists in cwd.
+- [ ] `aihook` CLI with `-p`, `-f`, `--exit`, `--wait [--timeout]`,
+      `--lockfile`, stdin support.
 - [ ] Auto-print last expression.
-- [ ] `SKILL.md` at repo root.
-- [ ] `set_trace` alias exported.
+- [ ] `SKILL.md` at repo root documenting the canonical workflow.
 - [ ] Integration test passes via `pytest`.
 - [ ] `tests/the-test-script.py` updated to `agent_hook()` (no argument).
 - [ ] Old `tool-description.md` removed or reduced to a pointer to `SKILL.md`.
