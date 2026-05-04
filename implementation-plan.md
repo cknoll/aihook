@@ -51,7 +51,7 @@ namespace via HTTP.
 
 ### 3. Session discovery
 
-- On startup, write a YAML lock file `./aihook-lock.yml` in the current
+- On startup (i.e. when `agent_hook()` is called), write a YAML lock file `./aihook-lock.yml` in the current
   working directory (i.e. the cwd of the host script). The file contains:
   - A leading comment line, e.g.:
     `# This file (created: {timestamp}) coordinates the client-server connection`
@@ -68,10 +68,7 @@ namespace via HTTP.
 - Primary discovery mechanism for the CLI: read `./aihook-lock.yml` from the
   current working directory. The CLI also accepts `--lockfile PATH` to point
   at an explicit lock file location.
-- Assumption: at most one aihook process per working directory. `--list` is
-  therefore **not** needed for the canonical workflow (but may still be
-  implemented as a debugging convenience that scans a few common locations;
-  optional).
+- Assumption: at most one aihook process per working directory.
 - Use PyYAML for reading/writing; add it to `requirements.txt`.
 
 ### 4. CLI `aihook`
@@ -81,26 +78,23 @@ Implement in `src/aihook/cli.py` using `argparse`. Options:
 - Port resolution order (first match wins):
   1. explicit `-p/--port PORT`
   2. `--lockfile PATH` → read `port` from that YAML file
-  3. `./aihook-lock.yml` in the current working directory
+  3. `./aihook-lock.yml` in the current working directory (also: see `--lockfile` option below). Note: if this file does not exists `aihook` should wait for either 5s (default) or the time specified by `--wait`.
   If none of these yield a port, error out with a helpful message.
 
 - `aihook '<code>'` — send code to the active session (port resolved as
-  above). → This convenience feature should not be documented in SKILL.md
-  because agents should always specify the port explicitly.
-- `aihook [-p PORT] '<code>'` — target a specific port.
-- `aihook [-p PORT] -f FILE` — send contents of FILE as the command. →
+  above; this also holds for the following commands).
+- `aihook '<code>'` — target a specific port.
+- `aihook -f FILE` — send contents of FILE as the command. →
   document in SKILL.md that this allows agents to reuse testing code snippets
   (e.g. after changing the "host"-code).
-- `aihook [-p PORT] -` or piping via stdin — read code from stdin when no
+- `aihook -` or piping via stdin — read code from stdin when no
   positional arg is given and stdin is not a TTY.
-- `aihook --wait [--timeout SECONDS]` — block until a valid lock file
-  appears (and its pid is alive). Default timeout: 5 seconds. Exit
-  non-zero on timeout. Can be combined with a command: first wait, then send.
-- `aihook --exit [-p PORT]` — send `exit()` to a session.
+- `aihook --wait SECONDS` — block until a valid lock file
+  appears (and its pid is alive). Exit
+  non-zero on timeout. Can be combined with a command, reading from stdin or from a file: first wait, then send. If this is not specified `aihook` should wait for 5s (default for `.aihook-lock.yml` to appear, see above)
+- `aihook --exit` — send `exit()` to a session.
 - `aihook --lockfile PATH` — use the given lock file instead of the one in
-  cwd.
-- `aihook --list` — optional debugging aid; not part of the canonical
-  workflow, not mentioned in SKILL.md.
+  cwd. Waiting logic applies nevertheless.
 - Exit code: non-zero if the executed code produced stderr output or raised.
 
 Implementation note: use `urllib.request` (stdlib) rather than shelling out to
@@ -115,6 +109,8 @@ expression (try `compile(src, '<agent>', 'eval')`), evaluate it and print
 wrapping everything in `print(...)`.
 
 ### 6. Structured output (optional, keep simple)
+
+Note: this feature can be implemented later omit for now.
 
 Keep the response body as plain text by default (back-compat with curl).
 Add `?format=json` query param support returning
@@ -139,7 +135,7 @@ Create at repo root. Structure:
      ```bash
      python path/to/host_script.py > aihook-host.log 2>&1 &
      ```
-  2. Wait for the server to be ready and discover the port:
+  2. (TODO-AIDER: This rework (merge 2 and 3?) as waiting for 5s is now default) Wait for the server to be ready and discover the port:
      ```bash
      aihook --wait
      ```
@@ -148,14 +144,14 @@ Create at repo root. Structure:
      automatically).
   3. Interact using the discovered port:
      ```bash
-     aihook -p <PORT> 'print(x)'
-     aihook -p <PORT> -f snippet.py
+     aihook 'x'
+     aihook -f snippet.py
      ```
-     Document `-f FILE` as the recommended way to reuse testing snippets
+     Document `-f FILE` as the recommended way to reuse complex testing snippets
      after editing the host code.
   4. End the session:
      ```bash
-     aihook -p <PORT> --exit
+     aihook --exit
      ```
 - Warn explicitly: **do not run the host script in the foreground** — it
   will not return until `exit()` is sent, blocking the agent's shell turn.
@@ -210,7 +206,7 @@ detection) that fakes a lock file in a tmp dir.
 - [ ] `./aihook-lock.yml` written on startup (with explanatory comment)
       and removed on shutdown / via `atexit`.
 - [ ] Host script refuses to start if a live lock file already exists in cwd.
-- [ ] `aihook` CLI with `-p`, `-f`, `--exit`, `--wait [--timeout]`,
+- [ ] `aihook` CLI with `-p`, `-f`, `--exit`, `--wait SECONDS`,
       `--lockfile`, stdin support.
 - [ ] Auto-print last expression.
 - [ ] `SKILL.md` at repo root documenting the canonical workflow.
