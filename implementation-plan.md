@@ -135,21 +135,18 @@ Create at repo root. Structure:
      ```bash
      python path/to/host_script.py > aihook-host.log 2>&1 &
      ```
-  2. (TODO-AIDER: This rework (merge 2 and 3?) as waiting for 5s is now default) Wait for the server to be ready and discover the port:
-     ```bash
-     aihook --wait
-     ```
-     This blocks until `./aihook-lock.yml` appears (default timeout 5s).
-     Read the `port` field from that file (or let the CLI resolve it
-     automatically).
-  3. Interact using the discovered port:
+  2. Interact with the paused script. The CLI automatically waits up to 5s
+     for `./aihook-lock.yml` to appear and resolves the port from it, so
+     no explicit wait step is needed:
      ```bash
      aihook 'x'
      aihook -f snippet.py
      ```
-     Document `-f FILE` as the recommended way to reuse complex testing snippets
-     after editing the host code.
-  4. End the session:
+     Document `-f FILE` as the recommended way to reuse complex testing
+     snippets after editing the host code. If the host script takes longer
+     than 5s to reach `agent_hook()`, override the timeout with
+     `--wait SECONDS`, e.g. `aihook --wait 30 'x'`.
+  3. End the session:
      ```bash
      aihook --exit
      ```
