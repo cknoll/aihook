@@ -13,6 +13,7 @@ import time
 from urllib import request as urlrequest
 from urllib.error import URLError
 
+import platformdirs
 from importlib.resources import files as _resource_files
 
 from . import core
@@ -122,6 +123,7 @@ def _build_parser():
     parser = argparse.ArgumentParser(
         prog="aihook",
         description="Send Python code to a running aihook REPL session.",
+        add_help=False,  # We'll add custom help
     )
     parser.add_argument(
         "cmd", nargs="?",
@@ -149,43 +151,87 @@ def _build_parser():
     )
     parser.add_argument(
         "--bootstrap", action="store_true",
-        help=f"Install SKILL.md into {AIDER_DESK_SKILL_DIR} and exit.",
+        help=f"Install SKILL.md into {AIDER_DESK_SKILL_DIR}, create learnings directory, and exit.",
     )
     parser.add_argument(
-        "--allow-overwrite", action="store_true",
+        "--allow-overwrite-SKILL.md", action="store_true",
         help="With --bootstrap: overwrite an existing SKILL.md at the destination.",
     )
     parser.add_argument(
         "--version", action="store_true",
         help="Show the version and exit.",
     )
+    parser.add_argument(
+        "-h", "--help", action="store_true",
+        help="Show this help message and exit.",
+    )
     return parser
 
 
-def _bootstrap(allow_overwrite):
-    """Copy the packaged SKILL.md into the aider-desk skills directory."""
+def _bootstrap(allow_overwrite_skillmd):
+    """Copy the packaged SKILL.md and default learnings to appropriate directories."""
+    # 1. Handle SKILL.md (into aider-desk skills dir)
     dest_dir = AIDER_DESK_SKILL_DIR
-    dest = os.path.join(dest_dir, "SKILL.md")
+    dest_skill = os.path.join(dest_dir, "SKILL.md")
 
-    if os.path.exists(dest) and not allow_overwrite:
+    if os.path.exists(dest_skill) and not allow_overwrite_skillmd:
         sys.stderr.write(
-            f"aihook: {dest} already exists.\n"
-            f"aihook: pass --allow-overwrite to replace it.\n"
+            f"aihook: {dest_skill} already exists.\n"
+            f"aihook: pass --allow-overwrite-SKILL.md to replace it.\n"
         )
         sys.exit(1)
 
     try:
-        source = _resource_files("aihook").joinpath("SKILL.md")
-        content = source.read_text(encoding="utf-8")
+        source_skill = _resource_files("aihook").joinpath("SKILL.md")
+        skill_content = source_skill.read_text(encoding="utf-8")
     except (FileNotFoundError, ModuleNotFoundError) as e:
         sys.stderr.write(f"aihook: could not locate packaged SKILL.md: {e}\n")
         sys.exit(1)
 
     os.makedirs(dest_dir, exist_ok=True)
-    with open(dest, "w", encoding="utf-8") as f:
-        f.write(content)
+    with open(dest_skill, "w", encoding="utf-8") as f:
+        f.write(skill_content)
+    print(f"aihook: wrote {dest_skill}")
 
-    print(f"aihook: wrote {dest}")
+    # 2. Handle learnings directory (using platformdirs user data dir)
+    try:
+        aihook_data_dir = platformdirs.user_data_dir("aihook")
+    except Exception as e:
+        sys.stderr.write(f"aihook: could not determine user data directory: {e}\n")
+        sys.exit(1)
+    learnings_dest = os.path.join(aihook_data_dir, "learnings")
+    os.makedirs(learnings_dest, exist_ok=True)
+    print(f"aihook: learnings directory at {learnings_dest}")
+
+    # Copy default learnings files from package (if any)
+    try:
+        pkg_learnings = _resource_files("aihook").joinpath("learnings")
+        # Iterate over files in the packaged learnings directory
+        for item in pkg_learnings.iterdir():
+            if item.is_file():
+                dest_file = os.path.join(learnings_dest, item.name)
+                if os.path.exists(dest_file):
+                    sys.stderr.write(
+                        f"aihook: warning: {dest_file} already exists, skipping.\n"
+                    )
+                    continue
+                try:
+                    content = item.read_text(encoding="utf-8")
+                except Exception as e:
+                    sys.stderr.write(
+                        f"aihook: could not read packaged learnings file {item.name}: {e}\n"
+                    )
+                    continue
+                with open(dest_file, "w", encoding="utf-8") as f:
+                    f.write(content)
+                print(f"aihook: wrote {dest_file}")
+    except (FileNotFoundError, ModuleNotFoundError) as e:
+        # No learnings directory in package; not fatal.
+        sys.stderr.write(f"aihook: no default learnings found in package: {e}\n")
+    except Exception as e:
+        sys.stderr.write(f"aihook: error processing learnings: {e}\n")
+
+    print(f"aihook: bootstrap complete.")
     sys.exit(0)
 
 
@@ -193,17 +239,31 @@ def main(argv=None):
     parser = _build_parser()
     args = parser.parse_args(argv)
 
+    if args.help:
+        parser.print_help()
+        # Print info about installed files/dirs if they exist
+        skill_md_path = os.path.join(AIDER_DESK_SKILL_DIR, "SKILL.md")
+        if os.path.exists(skill_md_path):
+            print(f"\nInstalled files/directories:")
+            print(f"  SKILL.md: {skill_md_path}")
+        try:
+            learnings_dir = os.path.join(platformdirs.user_data_dir("aihook"), "learnings")
+        except Exception:
+            learnings_dir = None
+        if learnings_dir and os.path.exists(learnings_dir):
+            print(f"  Learnings dir: {learnings_dir}")
+        sys.exit(0)
+
     if args.version:
         from .release import __version__
         print(f"aihook {__version__}")
         sys.exit(0)
 
     if args.bootstrap:
-        _bootstrap(args.allow_overwrite)
+        _bootstrap(args.allow_overwrite_SKILL_md)
 
-    if args.allow_overwrite:
-        parser.error("--allow-overwrite only makes sense with --bootstrap")
-
+    if args.allow_overwrite_SKILL_md:
+        parser.error("--allow-overwrite-SKILL.md only makes sense with --bootstrap")
 
     command = _read_command(args)
     if command is None:
