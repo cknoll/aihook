@@ -16,6 +16,21 @@ from urllib.error import URLError
 from . import core
 
 
+import argparse
+import json
+import os
+import sys
+import time
+from urllib import request as urlrequest
+from urllib.error import URLError
+
+from . import core
+from importlib.resources import files as _resource_files
+
+
+AIDER_DESK_SKILL_DIR = os.path.expanduser("~/.aider-desk/skills/aihook")
+
+
 DEFAULT_WAIT_SECONDS = 5.0
 
 
@@ -142,12 +157,54 @@ def _build_parser():
         "--lockfile", default=None,
         help="Path to the lock file (default: ./aihook-lock.yml).",
     )
+    parser.add_argument(
+        "--bootstrap", action="store_true",
+        help=f"Install SKILL.md into {AIDER_DESK_SKILL_DIR} and exit.",
+    )
+    parser.add_argument(
+        "--allow-overwrite", action="store_true",
+        help="With --bootstrap: overwrite an existing SKILL.md at the destination.",
+    )
     return parser
+
+
+def _bootstrap(allow_overwrite):
+    """Copy the packaged SKILL.md into the aider-desk skills directory."""
+    dest_dir = AIDER_DESK_SKILL_DIR
+    dest = os.path.join(dest_dir, "SKILL.md")
+
+    if os.path.exists(dest) and not allow_overwrite:
+        sys.stderr.write(
+            f"aihook: {dest} already exists.\n"
+            f"aihook: pass --allow-overwrite to replace it.\n"
+        )
+        sys.exit(1)
+
+    try:
+        source = _resource_files("aihook").joinpath("SKILL.md")
+        content = source.read_text(encoding="utf-8")
+    except (FileNotFoundError, ModuleNotFoundError) as e:
+        sys.stderr.write(f"aihook: could not locate packaged SKILL.md: {e}\n")
+        sys.exit(1)
+
+    os.makedirs(dest_dir, exist_ok=True)
+    with open(dest, "w", encoding="utf-8") as f:
+        f.write(content)
+
+    print(f"aihook: wrote {dest}")
+    sys.exit(0)
 
 
 def main(argv=None):
     parser = _build_parser()
     args = parser.parse_args(argv)
+
+    if args.bootstrap:
+        _bootstrap(args.allow_overwrite)
+
+    if args.allow_overwrite:
+        parser.error("--allow-overwrite only makes sense with --bootstrap")
+
 
     command = _read_command(args)
     if command is None:
