@@ -15,14 +15,6 @@ from urllib.error import URLError
 
 from importlib.resources import files as _resource_files
 
-try:
-    from importlib.metadata import version as _get_version
-except ImportError:  # pragma: no cover - Python < 3.8 fallback
-    try:
-        from importlib_metadata import version as _get_version
-    except ImportError:
-        _get_version = None
-
 from . import core
 
 
@@ -163,6 +155,10 @@ def _build_parser():
         "--allow-overwrite", action="store_true",
         help="With --bootstrap: overwrite an existing SKILL.md at the destination.",
     )
+    parser.add_argument(
+        "--version", action="store_true",
+        help="Show the version and exit.",
+    )
     return parser
 
 
@@ -196,6 +192,11 @@ def _bootstrap(allow_overwrite):
 def main(argv=None):
     parser = _build_parser()
     args = parser.parse_args(argv)
+
+    if args.version:
+        from .release import __version__
+        print(f"aihook {__version__}")
+        sys.exit(0)
 
     if args.bootstrap:
         _bootstrap(args.allow_overwrite)
