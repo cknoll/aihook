@@ -105,6 +105,136 @@ class TestIntegration(unittest.TestCase):
                 proc.kill()
                 proc.wait(timeout=5)
 
+    def test_multi_statement_execution(self):
+        env = dict(os.environ)
+        env["PYTHONUNBUFFERED"] = "1"
+        proc = subprocess.Popen(
+            [sys.executable, self.script],
+            cwd=self.tmpdir,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            env=env,
+        )
+        try:
+            data = _poll_lockfile(self.lockfile)
+            port = int(data["port"])
+            cmd = "def foo():\n    return 42\n\nprint(foo())\n"
+            resp = _send(port, cmd)
+            self.assertEqual(resp["exception"], None)
+            self.assertEqual(resp["stderr"], "")
+            self.assertIn("42", resp["stdout"])
+            # Exit session
+            _send(port, "exit()")
+            proc.wait(timeout=15)
+            self.assertEqual(proc.returncode, 0)
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait(timeout=5)
+
+    def test_def_alone(self):
+        env = dict(os.environ)
+        env["PYTHONUNBUFFERED"] = "1"
+        proc = subprocess.Popen(
+            [sys.executable, self.script],
+            cwd=self.tmpdir,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            env=env,
+        )
+        try:
+            data = _poll_lockfile(self.lockfile)
+            port = int(data["port"])
+            # define function without calling
+            resp = _send(port, "def foo():\n    return 42\n")
+            self.assertEqual(resp["exception"], None)
+            # verify function exists by calling it
+            resp2 = _send(port, "foo()")
+            self.assertEqual(resp2["exception"], None)
+            self.assertIn("42", resp2["stdout"])
+            _send(port, "exit()")
+            proc.wait(timeout=15)
+            self.assertEqual(proc.returncode, 0)
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait(timeout=5)
+
+    def test_assignment_and_use(self):
+        env = dict(os.environ)
+        env["PYTHONUNBUFFERED"] = "1"
+        proc = subprocess.Popen(
+            [sys.executable, self.script],
+            cwd=self.tmpdir,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            env=env,
+        )
+        try:
+            data = _poll_lockfile(self.lockfile)
+            port = int(data["port"])
+            cmd = "x = 7\nprint(x * 6)\n"
+            resp = _send(port, cmd)
+            self.assertEqual(resp["exception"], None)
+            self.assertIn("42", resp["stdout"])
+            _send(port, "exit()")
+            proc.wait(timeout=15)
+            self.assertEqual(proc.returncode, 0)
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait(timeout=5)
+
+    def test_syntax_error_multi_statement(self):
+        env = dict(os.environ)
+        env["PYTHONUNBUFFERED"] = "1"
+        proc = subprocess.Popen(
+            [sys.executable, self.script],
+            cwd=self.tmpdir,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            env=env,
+        )
+        try:
+            data = _poll_lockfile(self.lockfile)
+            port = int(data["port"])
+            # invalid syntax
+            cmd = "def foo(\n"
+            resp = _send(port, cmd)
+            self.assertIsNotNone(resp["exception"], "Expected SyntaxError exception")
+            # stderr may contain traceback
+            _send(port, "exit()")
+            proc.wait(timeout=15)
+            self.assertEqual(proc.returncode, 0)
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait(timeout=5)
+
+    def test_single_expression_unchanged(self):
+        env = dict(os.environ)
+        env["PYTHONUNBUFFERED"] = "1"
+        proc = subprocess.Popen(
+            [sys.executable, self.script],
+            cwd=self.tmpdir,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            env=env,
+        )
+        try:
+            data = _poll_lockfile(self.lockfile)
+            port = int(data["port"])
+            resp = _send(port, "1+2")
+            self.assertEqual(resp["exception"], None)
+            self.assertIn("3", resp["stdout"])
+            _send(port, "exit()")
+            proc.wait(timeout=15)
+            self.assertEqual(proc.returncode, 0)
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait(timeout=5)
+
 
 if __name__ == "__main__":
     unittest.main()

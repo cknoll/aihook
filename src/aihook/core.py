@@ -3,7 +3,6 @@ Core implementation of the aihook agent hook / HTTP REPL.
 """
 
 import atexit
-import code
 import errno
 import inspect
 import io
@@ -171,7 +170,6 @@ class ReusableHTTPServer(HTTPServer):
 class AgenticREPL:
     def __init__(self, namespace, port=None, lockfile_path=None):
         self.namespace = namespace
-        self.console = code.InteractiveConsole(namespace)
         self.stdout_buffer = io.StringIO()
         self.stderr_buffer = io.StringIO()
         self.server = None
@@ -214,9 +212,8 @@ class AgenticREPL:
                         result_repr = repr(result)
                         print(result_repr)
                 else:
-                    # Statement(s): delegate to InteractiveConsole for proper
-                    # handling of multi-line input / compile errors.
-                    self.console.push(command)
+                    code_obj = compile(command, "<agent>", "exec")
+                    exec(code_obj, self.namespace)
             except SystemExit:
                 raise
             except BaseException as e:
@@ -331,6 +328,12 @@ class AgenticREPL:
         print(f"AIHOOK AgenticREPL: HTTP server running on http://127.0.0.1:{self.port}/execute")
         print(f"AIHOOK_PORT={self.port}")
         sys.stdout.flush()
+        sys.stderr.write(
+            "AIHOOK: note: rebinding a local variable of the calling function "
+            "does not propagate back (CPython fast-locals; same as pdb). "
+            "Mutate containers / attributes instead. See SKILL.md.\n"
+        )
+        sys.stderr.flush()
 
         try:
             self.server.serve_forever()

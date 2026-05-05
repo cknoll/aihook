@@ -57,6 +57,16 @@ bound to `127.0.0.1` on a free port in `5001-5101` and blocks until
    aihook --exit
    ```
 
+**Iterative probe loop.** For anything beyond a one-liner, keep a
+`snippet.py` next to the host script and rerun it after each edit:
+```
+# edit snippet.py
+aihook -f snippet.py
+# observe, edit snippet.py again, repeat
+```
+This is the primary workflow; the single-expression form is for quick
+probes only.
+
 ## CLI reference
 
 - `aihook '<code>'` — send code to the active session.
@@ -68,6 +78,12 @@ bound to `127.0.0.1` on a free port in `5001-5101` and blocks until
 - `aihook --wait SECONDS` — how long to wait for the lock file (default 5s).
 
 Exit code is non-zero if the remote code raised or wrote to stderr.
+
+`-f FILE` is opened by the CLI process (agent side), so relative paths
+resolve against the **agent's** current working directory, not the host
+script's. Use an absolute path (e.g. `-f "$PWD/snippet.py"`) if you are
+not certain the cwds match, or if your shell tool chains `cd` commands
+unreliably.
 
 ## Auto-print last expression
 
@@ -92,6 +108,15 @@ file is removed on clean shutdown.
 second host script is started in the same cwd while another is active, it
 will refuse to start and point you to the existing lock file. Stale lock
 files (pid no longer alive) are overwritten automatically.
+
+Lock-file discovery does **not** walk up parent directories — `aihook`
+only looks at `./aihook-lock.yml` in the invoking shell's exact cwd.
+Run `aihook` from the same directory as the host script.
+
+If the host process is killed uncleanly (e.g. `SIGKILL`, OOM), the lock
+file may remain. A subsequent `agent_hook()` call in the same cwd will
+detect this automatically (pid not alive) and overwrite it. To clean up
+manually, just `rm ./aihook-lock.yml`.
 
 ## CPython caveat: local-variable write-back
 
