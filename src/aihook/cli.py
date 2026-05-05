@@ -13,19 +13,17 @@ import time
 from urllib import request as urlrequest
 from urllib.error import URLError
 
-from . import core
-
-
-import argparse
-import json
-import os
-import sys
-import time
-from urllib import request as urlrequest
-from urllib.error import URLError
-
-from . import core
 from importlib.resources import files as _resource_files
+
+try:
+    from importlib.metadata import version as _get_version
+except ImportError:  # pragma: no cover - Python < 3.8 fallback
+    try:
+        from importlib_metadata import version as _get_version
+    except ImportError:
+        _get_version = None
+
+from . import core
 
 
 AIDER_DESK_SKILL_DIR = os.path.expanduser("~/.aider-desk/skills/aihook")
