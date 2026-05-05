@@ -38,22 +38,29 @@ bound to `127.0.0.1` on a free port in `5001-5101` and blocks until
    ```
    **Do not run the host script in the foreground.** It will not return
    until `exit()` is sent, which would block the agent's shell turn.
+   `aihook-host.log` is the recommended name for the log file. If you need
+   multiple log files append a number, e.g. `aihook-host1.log` etc.
 
-2. Interact with the paused script. The CLI automatically waits up to 5s
+2.
+   - Interact with the paused script. The CLI automatically waits up to 5s
    for `./aihook-lock.yml` to appear and resolves the port from it, so no
    explicit wait step is needed:
-   ```bash
-   aihook 'complex_var["nested"]["value"]'
-   aihook -f snippet.py
-   ```
-   Use `-f FILE` to reuse complex testing snippets after editing the host
-   code — rerun the same file after each change. If the host script takes
-   longer than 5s to reach `agent_hook()`, override the timeout:
-   ```bash
-   aihook --wait 30 'x'
-   ```
+      ```bash
+      aihook 'complex_var["nested"]["value"]'
+      aihook -f snippet.py
+      ```
+   - Use `-f FILE` to reuse complex testing snippets after editing the host
+   code — rerun the same file after each change. `aihook-snippet.py` is the
+   recommended name. If you need multiple snippets append a number, e.g.
+   `aihook-snippet1.py` etc.
 
-3. End the session:
+   - If the host script takes longer than 5s to reach `agent_hook()`, override
+   the timeout:
+      ```bash
+      aihook --wait 30 'x'
+      ```
+
+4. End the session:
    ```bash
    aihook --exit
    ```
