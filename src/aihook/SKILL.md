@@ -97,7 +97,7 @@ aihook 'complex_var["nested"]'
 # -> {'value': 42, 'items': [1, 2, 3, 4]}
 ```
 
-Statements (assignments, `def`, `for`, ...) behave as in a normal REPL.
+Statements (assignments, `def`, `for`, ...) and multi-statement blocks behave as in a normal REPL. Single expressions auto-print their `repr()`; multi-statement code executes fully, with output from explicit `print()` calls or error tracebacks.
 
 ## Session discovery
 
