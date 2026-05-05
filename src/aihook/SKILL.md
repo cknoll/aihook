@@ -145,3 +145,13 @@ container, a module-level global, or an object attribute instead.
 
 - `AIHOOK_PORT=NNNN` — force a specific port.
 - `AIHOOK_PORT_RANGE=LO-HI` — override the default `5001-5101` range.
+
+## Agent-specific learnings library
+
+For niche, agent-specific topics (e.g., specific Python package quirks, custom workflow tips) that are too detailed for this main skill file, refer to the `learnings` directory.
+
+The `learnings` directory is managed by `aihook` and stored in your platform's user data directory (e.g., `~/.local/share/aihook/learnings` on Linux, `~/Library/Application Support/aihook/learnings` on macOS, `C:\Users\<User>\AppData\Local\aihook\learnings` on Windows). It is created when you run `aihook --bootstrap`.
+
+The directory contains markdown files named `topic_<name>.md` (e.g., `topic_numpy.md`) covering independent topics relevant to multiple agent sessions. Default files (like `README.md`) are copied from the aihook package; user-added topic files are never overwritten.
+
+Add your own topic files to this directory as your agents accumulate learnings.
