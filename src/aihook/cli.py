@@ -154,7 +154,7 @@ def _build_parser():
         help=f"Install SKILL.md into {AIDER_DESK_SKILL_DIR}, create learnings directory, and exit.",
     )
     parser.add_argument(
-        "--allow-overwrite-SKILL.md", action="store_true",
+        "--allow-overwrite-SKILL.md", dest="allow_overwrite_SKILL_md", action="store_true",
         help="With --bootstrap: overwrite an existing SKILL.md at the destination.",
     )
     parser.add_argument(
