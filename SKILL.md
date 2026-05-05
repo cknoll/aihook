@@ -1,3 +1,10 @@
+---
+name: aihook
+description: "TODO-AIDER: add oneline description of at most 400 chars"
+---
+
+
+
 # aihook — Agentic REPL Skill
 
 Pause a running Python script and explore / manipulate its live namespace
@@ -112,9 +119,3 @@ container, a module-level global, or an object attribute instead.
 
 - `AIHOOK_PORT=NNNN` — force a specific port.
 - `AIHOOK_PORT_RANGE=LO-HI` — override the default `5001-5101` range.
-
-## Non-goals
-
-- Authentication / TLS.
-- Remote (non-localhost) usage.
-- Multi-client concurrency in a single session.
