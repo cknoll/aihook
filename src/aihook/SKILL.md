@@ -1,6 +1,7 @@
 ---
 name: aihook
 description: "Pause a running Python script and explore or manipulate its live namespace over HTTP from an AI coding agent. Use for debugging hard-to-reproduce runtime state, inspecting real (not mocked) objects, and trying fixes against the live process before editing source files. Includes a CLI (aihook) with lock-file-based session discovery."
+version: "0.1.1"
 ---
 
 
@@ -57,8 +58,8 @@ bound to `127.0.0.1` on a free port in `5001-5101` and blocks until
    aihook --exit
    ```
 
-**Iterative probe loop.** For anything beyond a one-liner, keep a
-`snippet.py` next to the host script and rerun it after each edit:
+**Iterative probe loop.** For anything beyond short snippets (1-5 lines),
+keep a `snippet.py` next to the host script and rerun it after each edit:
 ```
 # edit snippet.py
 aihook -f snippet.py
