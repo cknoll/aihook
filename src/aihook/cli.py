@@ -20,6 +20,7 @@ from . import core
 
 
 AIDER_DESK_SKILL_DIR = os.path.expanduser("~/.aider-desk/skills/aihook")
+CLAUDE_CODE_COMMANDS_DIR = os.path.expanduser("~/.claude/commands")
 
 
 DEFAULT_WAIT_SECONDS = 5.0
@@ -151,11 +152,19 @@ def _build_parser():
     )
     parser.add_argument(
         "--bootstrap", action="store_true",
-        help=f"Install SKILL.md into {AIDER_DESK_SKILL_DIR}, create learnings directory, and exit.",
+        help=(
+            f"Install SKILL.md for the target agent (see --agent) and create the learnings "
+            f"directory, then exit. Aider: {AIDER_DESK_SKILL_DIR}/SKILL.md. "
+            f"Claude: {CLAUDE_CODE_COMMANDS_DIR}/aihook.md."
+        ),
+    )
+    parser.add_argument(
+        "--agent", default="aider", choices=["aider", "claude", "all"],
+        help="Target agent for --bootstrap skill installation (default: aider).",
     )
     parser.add_argument(
         "--allow-overwrite-SKILL.md", dest="allow_overwrite_SKILL_md", action="store_true",
-        help="With --bootstrap: overwrite an existing SKILL.md at the destination.",
+        help="With --bootstrap: overwrite an existing skill file at the destination.",
     )
     parser.add_argument(
         "--version", action="store_true",
@@ -168,32 +177,47 @@ def _build_parser():
     return parser
 
 
-def _bootstrap(allow_overwrite_skillmd):
-    """Copy the packaged SKILL.md and default learnings to appropriate directories."""
-    # 1. Handle SKILL.md (into aider-desk skills dir)
-    dest_dir = AIDER_DESK_SKILL_DIR
-    dest_skill = os.path.join(dest_dir, "SKILL.md")
+def _load_skill_content():
+    """Return the packaged SKILL.md text, or exit with an error."""
+    try:
+        source = _resource_files("aihook").joinpath("SKILL.md")
+        return source.read_text(encoding="utf-8")
+    except (FileNotFoundError, ModuleNotFoundError) as e:
+        sys.stderr.write(f"aihook: could not locate packaged SKILL.md: {e}\n")
+        sys.exit(1)
 
-    if os.path.exists(dest_skill) and not allow_overwrite_skillmd:
+
+def _install_skill_aider(allow_overwrite):
+    dest_skill = os.path.join(AIDER_DESK_SKILL_DIR, "SKILL.md")
+    if os.path.exists(dest_skill) and not allow_overwrite:
         sys.stderr.write(
             f"aihook: {dest_skill} already exists.\n"
             f"aihook: pass --allow-overwrite-SKILL.md to replace it.\n"
         )
         sys.exit(1)
-
-    try:
-        source_skill = _resource_files("aihook").joinpath("SKILL.md")
-        skill_content = source_skill.read_text(encoding="utf-8")
-    except (FileNotFoundError, ModuleNotFoundError) as e:
-        sys.stderr.write(f"aihook: could not locate packaged SKILL.md: {e}\n")
-        sys.exit(1)
-
-    os.makedirs(dest_dir, exist_ok=True)
+    skill_content = _load_skill_content()
+    os.makedirs(AIDER_DESK_SKILL_DIR, exist_ok=True)
     with open(dest_skill, "w", encoding="utf-8") as f:
         f.write(skill_content)
     print(f"aihook: wrote {dest_skill}")
 
-    # 2. Handle learnings directory (using platformdirs user data dir)
+
+def _install_skill_claude(allow_overwrite):
+    dest_skill = os.path.join(CLAUDE_CODE_COMMANDS_DIR, "aihook.md")
+    if os.path.exists(dest_skill) and not allow_overwrite:
+        sys.stderr.write(
+            f"aihook: {dest_skill} already exists.\n"
+            f"aihook: pass --allow-overwrite-SKILL.md to replace it.\n"
+        )
+        sys.exit(1)
+    skill_content = _load_skill_content()
+    os.makedirs(CLAUDE_CODE_COMMANDS_DIR, exist_ok=True)
+    with open(dest_skill, "w", encoding="utf-8") as f:
+        f.write(skill_content)
+    print(f"aihook: wrote {dest_skill}")
+
+
+def _setup_learnings():
     try:
         aihook_data_dir = platformdirs.user_data_dir("aihook")
     except Exception as e:
@@ -203,35 +227,35 @@ def _bootstrap(allow_overwrite_skillmd):
     os.makedirs(learnings_dest, exist_ok=True)
     print(f"aihook: learnings directory at {learnings_dest}")
 
-    # Copy default learnings files from package (if any)
     try:
         pkg_learnings = _resource_files("aihook").joinpath("learnings")
-        # Iterate over files in the packaged learnings directory
         for item in pkg_learnings.iterdir():
             if item.is_file():
                 dest_file = os.path.join(learnings_dest, item.name)
                 if os.path.exists(dest_file):
-                    sys.stderr.write(
-                        f"aihook: warning: {dest_file} already exists, skipping.\n"
-                    )
+                    sys.stderr.write(f"aihook: warning: {dest_file} already exists, skipping.\n")
                     continue
                 try:
                     content = item.read_text(encoding="utf-8")
                 except Exception as e:
-                    sys.stderr.write(
-                        f"aihook: could not read packaged learnings file {item.name}: {e}\n"
-                    )
+                    sys.stderr.write(f"aihook: could not read packaged learnings file {item.name}: {e}\n")
                     continue
                 with open(dest_file, "w", encoding="utf-8") as f:
                     f.write(content)
                 print(f"aihook: wrote {dest_file}")
     except (FileNotFoundError, ModuleNotFoundError) as e:
-        # No learnings directory in package; not fatal.
         sys.stderr.write(f"aihook: no default learnings found in package: {e}\n")
     except Exception as e:
         sys.stderr.write(f"aihook: error processing learnings: {e}\n")
 
-    print(f"aihook: bootstrap complete.")
+
+def _bootstrap(allow_overwrite_skillmd, agent):
+    if agent in ("aider", "all"):
+        _install_skill_aider(allow_overwrite_skillmd)
+    if agent in ("claude", "all"):
+        _install_skill_claude(allow_overwrite_skillmd)
+    _setup_learnings()
+    print("aihook: bootstrap complete.")
     sys.exit(0)
 
 
@@ -241,17 +265,23 @@ def main(argv=None):
 
     if args.help:
         parser.print_help()
-        # Print info about installed files/dirs if they exist
-        skill_md_path = os.path.join(AIDER_DESK_SKILL_DIR, "SKILL.md")
-        if os.path.exists(skill_md_path):
-            print(f"\nInstalled files/directories:")
-            print(f"  SKILL.md: {skill_md_path}")
+        installed = []
+        aider_skill = os.path.join(AIDER_DESK_SKILL_DIR, "SKILL.md")
+        if os.path.exists(aider_skill):
+            installed.append(f"  SKILL.md (aider):  {aider_skill}")
+        claude_skill = os.path.join(CLAUDE_CODE_COMMANDS_DIR, "aihook.md")
+        if os.path.exists(claude_skill):
+            installed.append(f"  aihook.md (claude): {claude_skill}")
         try:
             learnings_dir = os.path.join(platformdirs.user_data_dir("aihook"), "learnings")
         except Exception:
             learnings_dir = None
         if learnings_dir and os.path.exists(learnings_dir):
-            print(f"  Learnings dir: {learnings_dir}")
+            installed.append(f"  Learnings dir:     {learnings_dir}")
+        if installed:
+            print("\nInstalled files/directories:")
+            for line in installed:
+                print(line)
         sys.exit(0)
 
     if args.version:
@@ -260,8 +290,10 @@ def main(argv=None):
         sys.exit(0)
 
     if args.bootstrap:
-        _bootstrap(args.allow_overwrite_SKILL_md)
+        _bootstrap(args.allow_overwrite_SKILL_md, args.agent)
 
+    if args.agent != "aider":
+        parser.error("--agent only makes sense with --bootstrap")
     if args.allow_overwrite_SKILL_md:
         parser.error("--allow-overwrite-SKILL.md only makes sense with --bootstrap")
 
