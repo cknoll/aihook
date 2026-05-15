@@ -1,7 +1,7 @@
 ---
 name: aihook
 description: "Pause a running Python script and explore or manipulate its live namespace over HTTP from an AI coding agent. Use for debugging hard-to-reproduce runtime state, inspecting real (not mocked) objects, and trying fixes against the live process before editing source files. Includes a CLI (aihook) with lock-file-based session discovery."
-version: "0.1.3"
+version: "0.1.4"
 ---
 
 
