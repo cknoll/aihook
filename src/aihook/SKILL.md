@@ -81,6 +81,8 @@ probes only.
 - `aihook -f FILE` — send the contents of FILE as the command.
 - `aihook -` — read code from stdin (also the default when stdin is piped).
 - `aihook --exit` — send `exit()` to shut the session down.
+- `aihook --status` — show whether a session is active, stale, or absent (exits 0 if healthy).
+- `aihook --clean` — remove a stale lock file; refuses if the session is active.
 - `aihook -p PORT` — target a specific port (skips lock-file discovery).
 - `aihook --lockfile PATH` — use a custom lock-file path.
 - `aihook --wait SECONDS` — how long to wait for the lock file (default 5s).

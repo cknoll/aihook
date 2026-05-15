@@ -45,6 +45,24 @@ def _pid_alive(pid):
     return True
 
 
+def _proc_starttime_jiffies(pid):
+    """Return the process start time in jiffies since boot on Linux, or None if unavailable."""
+    try:
+        with open(f"/proc/{pid}/stat", "rb") as f:
+            data = f.read()
+        # comm field may contain spaces/parens; find the last ')' to skip it
+        idx = data.rfind(b")")
+        if idx < 0:
+            return None
+        # Fields after ')': state ppid pgrp session tty_nr tpgid flags
+        #   minflt cminflt majflt cmajflt utime stime cutime cstime
+        #   priority nice num_threads itrealvalue starttime(19)
+        fields = data[idx + 2:].split()
+        return int(fields[19])
+    except Exception:
+        return None
+
+
 def read_lockfile(path):
     """Read and parse a lock file. Returns a dict or raises."""
     with open(path, "r", encoding="utf-8") as f:
@@ -68,7 +86,11 @@ def write_lockfile(path, pid, port, cwd, script):
         "cwd": str(cwd),
         "start_time": timestamp,
         "script": str(script) if script is not None else "",
+        "tool": "aihook",
     }
+    proc_st = _proc_starttime_jiffies(int(pid))
+    if proc_st is not None:
+        payload["proc_starttime"] = proc_st
     with open(path, "w", encoding="utf-8") as f:
         f.write(header)
         yaml.safe_dump(payload, f, default_flow_style=False, sort_keys=True)
@@ -85,13 +107,22 @@ def remove_lockfile(path):
 
 
 def lockfile_is_stale(path):
-    """Return True if lock file exists but its pid is not alive."""
+    """Return True if lock file exists but its pid is not alive (or PID was reused)."""
     try:
         data = read_lockfile(path)
     except Exception:
         # Corrupt file counts as stale.
         return True
-    return not _pid_alive(data.get("pid"))
+    pid = data.get("pid")
+    if not _pid_alive(pid):
+        return True
+    # On Linux, cross-check the recorded proc_starttime to catch PID reuse after SIGKILL.
+    expected_starttime = data.get("proc_starttime")
+    if expected_starttime is not None:
+        current = _proc_starttime_jiffies(pid)
+        if current is not None and current != expected_starttime:
+            return True  # PID recycled
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -168,7 +199,7 @@ class ReusableHTTPServer(HTTPServer):
 
 
 class AgenticREPL:
-    def __init__(self, namespace, port=None, lockfile_path=None):
+    def __init__(self, namespace, port=None, lockfile_path=None, cwd=None, script=None):
         self.namespace = namespace
         self.stdout_buffer = io.StringIO()
         self.stderr_buffer = io.StringIO()
@@ -176,6 +207,8 @@ class AgenticREPL:
         self.running = False
         self.port = port
         self.lockfile_path = lockfile_path
+        self.cwd = cwd if cwd is not None else os.getcwd()
+        self.script = script if script is not None else ""
         self._cleanup_done = False
 
     # -- execution ---------------------------------------------------------
@@ -318,6 +351,12 @@ class AgenticREPL:
             self._cleanup()
             sys.exit(1)
 
+        # Write lock file now that the port is confirmed bound, so clients reading
+        # it can immediately connect without a race window where the port is free
+        # but the server hasn't bound yet.
+        if self.lockfile_path:
+            write_lockfile(self.lockfile_path, os.getpid(), self.port, self.cwd, self.script)
+
         # Banner. The second line is machine-parseable (AIHOOK_PORT=<port>).
         # We call sys.stdout.flush() immediately afterwards because when the
         # host script's stdout is a pipe (e.g. an agent runner that captures
@@ -382,12 +421,11 @@ def agent_hook(namespace=None, port=None):
 
     # Refuse to start if a live lock file already exists in cwd.
     if os.path.exists(lockfile_path):
-        try:
-            existing = read_lockfile(lockfile_path)
-        except Exception:
-            existing = None
-
-        if existing is not None and _pid_alive(existing.get("pid")):
+        if not lockfile_is_stale(lockfile_path):
+            try:
+                existing = read_lockfile(lockfile_path)
+            except Exception:
+                existing = {}
             sys.stderr.write(
                 f"AIHOOK: another aihook session appears to be active in this "
                 f"directory (pid={existing.get('pid')}, port={existing.get('port')}).\n"
@@ -404,9 +442,9 @@ def agent_hook(namespace=None, port=None):
 
     chosen_port = find_free_port(explicit_port=port)
     script = sys.argv[0] if sys.argv else ""
-    write_lockfile(lockfile_path, os.getpid(), chosen_port, cwd, script)
 
-    repl = AgenticREPL(namespace, port=chosen_port, lockfile_path=lockfile_path)
+    repl = AgenticREPL(namespace, port=chosen_port, lockfile_path=lockfile_path,
+                       cwd=cwd, script=script)
 
     # Ensure the lock file is removed even on abrupt termination.
     atexit.register(repl._cleanup)
