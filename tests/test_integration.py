@@ -236,5 +236,91 @@ class TestIntegration(unittest.TestCase):
                 proc.wait(timeout=5)
 
 
+class TestStatusAndClean(unittest.TestCase):
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.tmpdir = self._tmpdir.name
+        self.script = os.path.join(self.tmpdir, "host_script.py")
+        shutil.copy(HOST_SCRIPT_SRC, self.script)
+        self.lockfile = os.path.join(self.tmpdir, core.LOCKFILE_NAME)
+
+    def tearDown(self):
+        self._tmpdir.cleanup()
+
+    def _run_cli(self, *args, **kwargs):
+        return subprocess.run(
+            [sys.executable, "-m", "aihook.cli"] + list(args),
+            cwd=self.tmpdir,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            **kwargs,
+        )
+
+    def test_status_no_session(self):
+        result = self._run_cli("--status")
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("no active session", result.stdout)
+
+    def test_status_active_session(self):
+        env = dict(os.environ)
+        env["PYTHONUNBUFFERED"] = "1"
+        proc = subprocess.Popen(
+            [sys.executable, self.script],
+            cwd=self.tmpdir,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            env=env,
+        )
+        try:
+            _poll_lockfile(self.lockfile)
+            result = self._run_cli("--status")
+            self.assertEqual(result.returncode, 0, msg=result.stderr)
+            self.assertIn("session active", result.stdout)
+        finally:
+            if proc.poll() is None:
+                _send(int(core.read_lockfile(self.lockfile)["port"]), "exit()")
+                proc.wait(timeout=10)
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait(timeout=5)
+
+    def test_clean_nothing_to_clean(self):
+        result = self._run_cli("--clean")
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("nothing to clean", result.stdout)
+
+    def test_clean_stale_lockfile(self):
+        core.write_lockfile(self.lockfile, pid=2 ** 30, port=5050,
+                            cwd=self.tmpdir, script="x")
+        result = self._run_cli("--clean")
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("stale", result.stdout)
+        self.assertFalse(os.path.exists(self.lockfile))
+
+    def test_clean_active_session_refused(self):
+        env = dict(os.environ)
+        env["PYTHONUNBUFFERED"] = "1"
+        proc = subprocess.Popen(
+            [sys.executable, self.script],
+            cwd=self.tmpdir,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            env=env,
+        )
+        try:
+            _poll_lockfile(self.lockfile)
+            result = self._run_cli("--clean")
+            self.assertEqual(result.returncode, 1)
+            self.assertTrue(os.path.exists(self.lockfile))
+        finally:
+            if proc.poll() is None:
+                _send(int(core.read_lockfile(self.lockfile)["port"]), "exit()")
+                proc.wait(timeout=10)
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait(timeout=5)
+
+
 if __name__ == "__main__":
     unittest.main()

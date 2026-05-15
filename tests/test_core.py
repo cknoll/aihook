@@ -2,6 +2,8 @@ import os
 import tempfile
 import unittest
 
+import yaml
+
 from aihook import core
 
 
@@ -30,6 +32,11 @@ class TestCore(unittest.TestCase):
         self.assertEqual(data["cwd"], self.tmpdir)
         self.assertEqual(data["script"], "test.py")
         self.assertIn("start_time", data)
+        self.assertEqual(data["tool"], "aihook")
+        # proc_starttime is present on Linux where /proc is available
+        if os.path.exists("/proc"):
+            self.assertIn("proc_starttime", data)
+            self.assertIsInstance(data["proc_starttime"], int)
 
     def test_020_remove_lockfile_idempotent(self):
         core.write_lockfile(self.lockfile, pid=os.getpid(), port=5050,
@@ -60,3 +67,29 @@ class TestCore(unittest.TestCase):
         self.assertEqual(core._parse_port_range("5001-5101"), (5001, 5101))
         with self.assertRaises(ValueError):
             core._parse_port_range("not-a-range")
+
+    @unittest.skipUnless(os.path.exists("/proc"), "requires /proc filesystem")
+    def test_060_pid_reuse_detection(self):
+        core.write_lockfile(self.lockfile, pid=os.getpid(), port=5050,
+                            cwd=self.tmpdir, script="x")
+        data = core.read_lockfile(self.lockfile)
+        self.assertIn("proc_starttime", data)
+
+        # Tamper with proc_starttime to simulate PID reuse
+        data["proc_starttime"] = data["proc_starttime"] + 999999
+        with open(self.lockfile, "w", encoding="utf-8") as f:
+            yaml.safe_dump(data, f)
+
+        self.assertTrue(
+            core.lockfile_is_stale(self.lockfile),
+            "should detect PID reuse via mismatched proc_starttime",
+        )
+
+    @unittest.skipUnless(os.path.exists("/proc"), "requires /proc filesystem")
+    def test_061_proc_starttime_consistent(self):
+        pid = os.getpid()
+        st1 = core._proc_starttime_jiffies(pid)
+        st2 = core._proc_starttime_jiffies(pid)
+        self.assertIsNotNone(st1)
+        self.assertEqual(st1, st2)
+        self.assertIsNone(core._proc_starttime_jiffies(2 ** 30))

@@ -1,7 +1,7 @@
 ---
 name: aihook
 description: "Pause a running Python script and explore or manipulate its live namespace over HTTP from an AI coding agent. Use for debugging hard-to-reproduce runtime state, inspecting real (not mocked) objects, and trying fixes against the live process before editing source files. Includes a CLI (aihook) with lock-file-based session discovery."
-version: "0.1.3"
+version: "0.1.4"
 ---
 
 
@@ -81,6 +81,8 @@ probes only.
 - `aihook -f FILE` — send the contents of FILE as the command.
 - `aihook -` — read code from stdin (also the default when stdin is piped).
 - `aihook --exit` — send `exit()` to shut the session down.
+- `aihook --status` — show whether a session is active, stale, or absent (exits 0 if healthy).
+- `aihook --clean` — remove a stale lock file; refuses if the session is active.
 - `aihook -p PORT` — target a specific port (skips lock-file discovery).
 - `aihook --lockfile PATH` — use a custom lock-file path.
 - `aihook --wait SECONDS` — how long to wait for the lock file (default 5s).

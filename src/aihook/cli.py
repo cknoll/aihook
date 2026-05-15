@@ -8,6 +8,7 @@ in a host script) and prints the resulting stdout / stderr.
 import argparse
 import json
 import os
+import socket as _socket
 import sys
 import time
 from urllib import request as urlrequest
@@ -26,6 +27,18 @@ CLAUDE_CODE_COMMANDS_DIR = os.path.expanduser("~/.claude/commands")
 DEFAULT_WAIT_SECONDS = 5.0
 
 
+def _port_is_listening(port, timeout=1.0):
+    """Return True if 127.0.0.1:port is accepting connections."""
+    try:
+        s = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+        s.settimeout(timeout)
+        s.connect(("127.0.0.1", int(port)))
+        s.close()
+        return True
+    except OSError:
+        return False
+
+
 def _resolve_port(args):
     """
     Resolve the target port according to the documented priority:
@@ -34,7 +47,7 @@ def _resolve_port(args):
       3. ./aihook-lock.yml
     If no port is resolvable yet and a wait is configured, wait up to the
     configured number of seconds for the lock file to appear (and its pid to
-    be alive).
+    be alive and its port to be listening).
     """
     if args.port is not None:
         return args.port
@@ -60,14 +73,23 @@ def _resolve_port(args):
             pid = data.get("pid")
             port = data.get("port")
             if pid and port and core._pid_alive(pid):
-                return int(port)
-
-            # Stale: wait a bit in case it is being rewritten.
-            if time.monotonic() >= deadline:
-                sys.stderr.write(
-                    f"aihook: lock file {lockfile_path} is stale (pid {pid} not alive).\n"
-                )
-                sys.exit(2)
+                if _port_is_listening(port):
+                    return int(port)
+                # PID alive but port not responding — server may have crashed
+                if time.monotonic() >= deadline:
+                    sys.stderr.write(
+                        f"aihook: pid {pid} is alive but port {port} is not responding.\n"
+                        f"aihook: the server may have crashed. "
+                        f"Run 'aihook --clean' to remove the lock file.\n"
+                    )
+                    sys.exit(2)
+            else:
+                # Stale lock file: wait a bit in case it is being rewritten.
+                if time.monotonic() >= deadline:
+                    sys.stderr.write(
+                        f"aihook: lock file {lockfile_path} is stale (pid {pid} not alive).\n"
+                    )
+                    sys.exit(2)
 
         if time.monotonic() >= deadline:
             sys.stderr.write(
@@ -100,6 +122,76 @@ def _send(port, command, timeout=30.0):
     except json.JSONDecodeError:
         # Fallback: treat as plain text on stdout.
         return {"stdout": body, "stderr": "", "result_repr": None, "exception": None}
+
+
+def _status_cmd(lockfile_path):
+    """Report the status of the aihook session at lockfile_path."""
+    if not os.path.exists(lockfile_path):
+        print(f"aihook: no active session (no lock file at {lockfile_path})")
+        sys.exit(0)
+
+    try:
+        data = core.read_lockfile(lockfile_path)
+    except Exception as e:
+        sys.stderr.write(f"aihook: corrupt lock file at {lockfile_path}: {e}\n")
+        sys.exit(2)
+
+    pid = data.get("pid")
+    port = data.get("port")
+    started = data.get("start_time", "unknown")
+    tool = data.get("tool")
+
+    if tool and tool != "aihook":
+        sys.stderr.write(f"aihook: warning: lock file 'tool' field is {tool!r}, expected 'aihook'\n")
+
+    if core.lockfile_is_stale(lockfile_path):
+        sys.stderr.write(
+            f"aihook: stale lock file at {lockfile_path} (pid {pid} not alive)\n"
+            f"aihook: run 'aihook --clean' to remove it.\n"
+        )
+        sys.exit(1)
+
+    if port and _port_is_listening(port):
+        print(f"aihook: session active — pid={pid}, port={port}, started={started}")
+        sys.exit(0)
+    else:
+        sys.stderr.write(
+            f"aihook: pid {pid} is alive but port {port} is not responding.\n"
+            f"aihook: the server may have crashed. Run 'aihook --clean' to remove the lock file.\n"
+        )
+        sys.exit(1)
+
+
+def _clean_cmd(lockfile_path):
+    """Remove a stale lock file. Refuse if the session is active."""
+    if not os.path.exists(lockfile_path):
+        print(f"aihook: nothing to clean (no lock file at {lockfile_path})")
+        sys.exit(0)
+
+    try:
+        data = core.read_lockfile(lockfile_path)
+        corrupt = False
+    except Exception:
+        data = {}
+        corrupt = True
+
+    if not corrupt and not core.lockfile_is_stale(lockfile_path):
+        pid = data.get("pid")
+        port = data.get("port")
+        sys.stderr.write(
+            f"aihook: refusing to remove lock file for active session "
+            f"(pid={pid}, port={port}).\n"
+            f"aihook: use 'aihook --exit' to stop the session first.\n"
+        )
+        sys.exit(1)
+
+    pid = data.get("pid")
+    core.remove_lockfile(lockfile_path)
+    if corrupt:
+        print(f"aihook: removed corrupt lock file {lockfile_path}")
+    else:
+        print(f"aihook: removed stale lock file {lockfile_path} (pid {pid} was not alive)")
+    sys.exit(0)
 
 
 def _read_command(args):
@@ -149,6 +241,14 @@ def _build_parser():
     parser.add_argument(
         "--lockfile", default=None,
         help="Path to the lock file (default: ./aihook-lock.yml).",
+    )
+    parser.add_argument(
+        "--status", action="store_true",
+        help="Show status of the current aihook session and exit.",
+    )
+    parser.add_argument(
+        "--clean", action="store_true",
+        help="Remove a stale lock file and exit. Refuses if a session is active.",
     )
     parser.add_argument(
         "--bootstrap", action="store_true",
@@ -288,6 +388,14 @@ def main(argv=None):
         from .release import __version__
         print(f"aihook {__version__}")
         sys.exit(0)
+
+    if args.status:
+        lockfile_path = args.lockfile or os.path.join(os.getcwd(), core.LOCKFILE_NAME)
+        _status_cmd(lockfile_path)
+
+    if args.clean:
+        lockfile_path = args.lockfile or os.path.join(os.getcwd(), core.LOCKFILE_NAME)
+        _clean_cmd(lockfile_path)
 
     if args.bootstrap:
         _bootstrap(args.allow_overwrite_SKILL_md, args.agent)
