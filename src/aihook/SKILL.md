@@ -42,9 +42,9 @@ bound to `127.0.0.1` on a free port in `5001-5101` and blocks until
    multiple log files append a number, e.g. `aihook-host1.log` etc.
 
 2.
-   - Interact with the paused script. The CLI automatically waits up to 5s
-   for `./aihook-lock.yml` to appear and resolves the port from it, so no
-   explicit wait step is needed:
+   - Interact with the paused script. The CLI waits up to 180s by default
+   for `./aihook-lock.yml` to appear, validates that the process is alive and
+   the port is responding, then resolves the port automatically:
       ```bash
       aihook 'complex_var["nested"]["value"]'
       aihook -f snippet.py
@@ -54,18 +54,13 @@ bound to `127.0.0.1` on a free port in `5001-5101` and blocks until
    recommended name. If you need multiple snippets append a number, e.g.
    `aihook-snippet1.py` etc.
 
-   - If the host script takes longer than 5s to reach `agent_hook()`, use
-   `--wait`. Set it generously for scripts with long startup phases (browser
-   launch, heavy imports, initial data extraction can easily take 60–120s).
-   When the session is found, the CLI prints how long it waited.
+   - If 180s is not enough (rare), override with `--wait`:
       ```bash
-      aihook --wait 120 'x'
+      aihook --wait 600 'x'
       ```
-   - For unpredictable startup times the shell loop is the most robust approach:
-      ```bash
-      until [ -f aihook-lock.yml ]; do sleep 3; done
-      aihook 'x'
-      ```
+   - When the session is found, the CLI prints how long it waited. If the
+   timeout expires without finding a healthy session, it exits with a clear
+   error — check the host script's log file for crashes.
 
 4. End the session:
    ```bash
@@ -93,8 +88,8 @@ probes only.
 - `aihook --clean` — remove a stale lock file; refuses if the session is active.
 - `aihook -p PORT` — target a specific port (skips lock-file discovery).
 - `aihook --lockfile PATH` — use a custom lock-file path.
-- `aihook --wait SECONDS` — how long to wait for the lock file (default 5s). Set
-  generously for scripts with long startup phases; see shell-loop alternative above.
+- `aihook --wait SECONDS` — how long to wait for a healthy session (default 180s). Increase
+  for unusually slow startup; if it times out, check the host script's log for crashes.
 
 Exit code is non-zero if the remote code raised or wrote to stderr.
 

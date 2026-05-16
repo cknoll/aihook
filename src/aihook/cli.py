@@ -24,7 +24,7 @@ AIDER_DESK_SKILL_DIR = os.path.expanduser("~/.aider-desk/skills/aihook")
 CLAUDE_CODE_COMMANDS_DIR = os.path.expanduser("~/.claude/commands")
 
 
-DEFAULT_WAIT_SECONDS = 5.0
+DEFAULT_WAIT_SECONDS = 180.0
 
 
 def _port_is_listening(port, timeout=1.0):

@@ -48,8 +48,7 @@ was failing silently on every "show replies" button click:
 # Start the slow script in the background
 python fetch_comments.py --url "https://example.com/article" > aihook-host.log 2>&1 &
 
-# Wait for it to reach agent_hook() (cookie banner, scroll, 8 comments × 8s each)
-until [ -f aihook-lock.yml ]; do sleep 3; done
+# Wait for it to reach agent_hook() — CLI validates pid + port, times out after 180s
 # aihook: session found after 94.3s
 
 # Probe the live DOM
@@ -102,7 +101,7 @@ This installs `SKILL.md` (the agent's instruction file for using aihook) and cre
 | `aihook --exit` | Shut down the session and let the script resume |
 | `aihook --status` | Show whether a session is active (exits 0 if healthy) |
 | `aihook --clean` | Remove a stale lock file |
-| `aihook --wait N` | Wait up to N seconds for the lock file (default: 5s) |
+| `aihook --wait N` | Wait up to N seconds for a healthy session (default: 180s) |
 | `aihook -p PORT` | Target a specific port (skips lock-file discovery) |
 | `aihook --lockfile PATH` | Use a custom lock-file path |
 | `aihook --bootstrap` | Install SKILL.md and create learnings directory |
