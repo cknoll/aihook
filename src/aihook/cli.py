@@ -268,7 +268,7 @@ def _build_parser():
         action="store_true",
         help=(
             f"Install SKILL.md for the target agent (see --agent) and create the learnings "
-            f"directory, then exit. Aider: {AIDER_DESK_SKILL_DIR}/SKILL.md. "
+            f"directory, then exit. aider-desk: {AIDER_DESK_SKILL_DIR}/SKILL.md. "
             f"Claude: {CLAUDE_CODE_COMMANDS_DIR}/aihook.md."
         ),
     )
@@ -389,7 +389,7 @@ def main(argv=None):
         installed = []
         aider_skill = os.path.join(AIDER_DESK_SKILL_DIR, "SKILL.md")
         if os.path.exists(aider_skill):
-            installed.append(f"  SKILL.md (aider):  {aider_skill}")
+            installed.append(f"  SKILL.md (aider-desk):  {aider_skill}")
         claude_skill = os.path.join(CLAUDE_CODE_COMMANDS_DIR, "aihook.md")
         if os.path.exists(claude_skill):
             installed.append(f"  aihook.md (claude): {claude_skill}")

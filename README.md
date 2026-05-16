@@ -83,7 +83,7 @@ For Claude Code:
 aihook --bootstrap --agent claude
 ```
 
-For aider / aider-desk:
+For aider-desk:
 ```bash
 aihook --bootstrap --agent aider
 ```
