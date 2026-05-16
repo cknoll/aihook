@@ -199,7 +199,7 @@ class ReusableHTTPServer(HTTPServer):
 
 
 class AgenticREPL:
-    def __init__(self, namespace, port=None, lockfile_path=None, cwd=None, script=None):
+    def __init__(self, namespace, port=None, lockfile_path=None, cwd=None, script=None, callsite=None):
         self.namespace = namespace
         self.stdout_buffer = io.StringIO()
         self.stderr_buffer = io.StringIO()
@@ -209,6 +209,7 @@ class AgenticREPL:
         self.lockfile_path = lockfile_path
         self.cwd = cwd if cwd is not None else os.getcwd()
         self.script = script if script is not None else ""
+        self.callsite = callsite
         self._cleanup_done = False
 
     # -- execution ---------------------------------------------------------
@@ -254,6 +255,11 @@ class AgenticREPL:
                 exception_str = "".join(
                     traceback.format_exception(type(e), e, e.__traceback__)
                 )
+                if isinstance(e, SyntaxError) and "backslash" in str(e):
+                    exception_str += (
+                        "\naihook hint: f-strings cannot contain backslashes in Python < 3.12.\n"
+                        "Use a snippet file (-f FILE) or assign the selector to a variable first.\n"
+                    )
                 print(exception_str, file=sys.stderr, end="")
         finally:
             sys.stdout = old_stdout
@@ -365,6 +371,8 @@ class AgenticREPL:
         # file is the authoritative discovery channel, but a promptly-flushed
         # banner helps humans and streaming agents.
         print(f"AIHOOK AgenticREPL: HTTP server running on http://127.0.0.1:{self.port}/execute")
+        if self.callsite:
+            print(f"AIHOOK: called from {self.callsite}")
         print(f"AIHOOK_PORT={self.port}")
         sys.stdout.flush()
         sys.stderr.write(
@@ -413,6 +421,9 @@ def agent_hook(namespace=None, port=None):
     mutable objects (lists, dicts, attributes) works as expected. This is
     the same limitation as ``pdb``.
     """
+    caller_frame = inspect.currentframe().f_back
+    callsite = f"{caller_frame.f_code.co_filename}:{caller_frame.f_lineno}"
+
     if namespace is None:
         namespace = _build_caller_namespace()
 
@@ -444,7 +455,7 @@ def agent_hook(namespace=None, port=None):
     script = sys.argv[0] if sys.argv else ""
 
     repl = AgenticREPL(namespace, port=chosen_port, lockfile_path=lockfile_path,
-                       cwd=cwd, script=script)
+                       cwd=cwd, script=script, callsite=callsite)
 
     # Ensure the lock file is removed even on abrupt termination.
     atexit.register(repl._cleanup)

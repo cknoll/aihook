@@ -1,7 +1,7 @@
 ---
 name: aihook
 description: "Pause a running Python script and explore or manipulate its live namespace over HTTP from an AI coding agent. Use for debugging hard-to-reproduce runtime state, inspecting real (not mocked) objects, and trying fixes against the live process before editing source files. Includes a CLI (aihook) with lock-file-based session discovery."
-version: "0.1.4"
+version: "0.1.5"
 ---
 
 
@@ -54,10 +54,17 @@ bound to `127.0.0.1` on a free port in `5001-5101` and blocks until
    recommended name. If you need multiple snippets append a number, e.g.
    `aihook-snippet1.py` etc.
 
-   - If the host script takes longer than 5s to reach `agent_hook()`, override
-   the timeout:
+   - If the host script takes longer than 5s to reach `agent_hook()`, use
+   `--wait`. Set it generously for scripts with long startup phases (browser
+   launch, heavy imports, initial data extraction can easily take 60–120s).
+   When the session is found, the CLI prints how long it waited.
       ```bash
-      aihook --wait 30 'x'
+      aihook --wait 120 'x'
+      ```
+   - For unpredictable startup times the shell loop is the most robust approach:
+      ```bash
+      until [ -f aihook-lock.yml ]; do sleep 3; done
+      aihook 'x'
       ```
 
 4. End the session:
@@ -79,13 +86,15 @@ probes only.
 
 - `aihook '<code>'` — send code to the active session.
 - `aihook -f FILE` — send the contents of FILE as the command.
+- `aihook -f -` — same, but read the file from stdin.
 - `aihook -` — read code from stdin (also the default when stdin is piped).
 - `aihook --exit` — send `exit()` to shut the session down.
 - `aihook --status` — show whether a session is active, stale, or absent (exits 0 if healthy).
 - `aihook --clean` — remove a stale lock file; refuses if the session is active.
 - `aihook -p PORT` — target a specific port (skips lock-file discovery).
 - `aihook --lockfile PATH` — use a custom lock-file path.
-- `aihook --wait SECONDS` — how long to wait for the lock file (default 5s).
+- `aihook --wait SECONDS` — how long to wait for the lock file (default 5s). Set
+  generously for scripts with long startup phases; see shell-loop alternative above.
 
 Exit code is non-zero if the remote code raised or wrote to stderr.
 
@@ -97,7 +106,7 @@ unreliably.
 
 ## Auto-print last expression
 
-If the submitted command parses as a single expression, its `repr()` is
+If the submitted command parses as a **single expression**, its `repr()` is
 printed automatically (unless the value is `None`). You don't need to wrap
 probes in `print(...)`.
 
@@ -106,13 +115,23 @@ aihook 'complex_var["nested"]'
 # -> {'value': 42, 'items': [1, 2, 3, 4]}
 ```
 
-Statements (assignments, `def`, `for`, ...) and multi-statement blocks behave as in a normal REPL. Single expressions auto-print their `repr()`; multi-statement code executes fully, with output from explicit `print()` calls or error tracebacks.
+**Multi-statement blocks do NOT auto-print.** Statements (`=`, `def`, `for`,
+multi-line snippets) execute silently unless you add explicit `print()` calls.
+A probe that returns nothing is often a missing `print()`, not an empty result.
+
+```python
+# snippet.py — always use print() in multi-line snippets
+for k, v in data.items():
+    print(k, v)
+```
 
 ## Session discovery
 
 On startup, the host writes `./aihook-lock.yml` in its current working
 directory, containing `pid`, `port`, `cwd`, `start_time`, `script`. The
-file is removed on clean shutdown.
+file is removed on clean shutdown. The banner also prints the source file and
+line number where `agent_hook()` was called, which is useful when a script
+has multiple hook points.
 
 **Assumption: at most one aihook process per working directory.** If a
 second host script is started in the same cwd while another is active, it

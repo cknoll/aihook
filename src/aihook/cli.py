@@ -55,7 +55,8 @@ def _resolve_port(args):
     lockfile_path = args.lockfile or os.path.join(os.getcwd(), core.LOCKFILE_NAME)
     wait_seconds = args.wait if args.wait is not None else DEFAULT_WAIT_SECONDS
 
-    deadline = time.monotonic() + max(0.0, wait_seconds)
+    start = time.monotonic()
+    deadline = start + max(0.0, wait_seconds)
     first = True
     while True:
         if os.path.exists(lockfile_path):
@@ -74,6 +75,9 @@ def _resolve_port(args):
             port = data.get("port")
             if pid and port and core._pid_alive(pid):
                 if _port_is_listening(port):
+                    elapsed = time.monotonic() - start
+                    if elapsed >= 0.5:
+                        sys.stderr.write(f"aihook: session found after {elapsed:.1f}s\n")
                     return int(port)
                 # PID alive but port not responding — server may have crashed
                 if time.monotonic() >= deadline:
@@ -200,6 +204,8 @@ def _read_command(args):
         return "exit()"
 
     if args.file:
+        if args.file == "-":
+            return sys.stdin.read()
         with open(args.file, "r", encoding="utf-8") as f:
             return f.read()
 
