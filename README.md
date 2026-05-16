@@ -2,6 +2,7 @@
 
 **Pause a running Python script and let an AI agent inspect and manipulate its live state — without restarting.**
 
+[![PyPI version](https://img.shields.io/pypi/v/aihook.svg)](https://pypi.org/project/aihook/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
 
