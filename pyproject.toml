@@ -1,9 +1,5 @@
 [build-system]
-
-# setuptools-scm helps to find package-data which is tracked by git
-# anyway, make sure the following packages are installed
-# pip install build setuptools_scm
-requires = ["setuptools>=45", "setuptools_scm[toml]>=6.2"]
+requires = ["setuptools>=45"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -15,7 +11,7 @@ description = "..."
 authors=[{name = "Carsten Knoll", email = "firstname.lastname@domain.org"}]
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "GNU General Public License v3 (GPLv3)" }
+license = "GPL-3.0-or-later"
 
 dynamic = ["dependencies", "version"]
 
