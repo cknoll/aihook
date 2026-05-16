@@ -37,7 +37,9 @@ def _poll_lockfile(lockfile_path, timeout=15.0):
 def _send(port, command):
     url = f"http://127.0.0.1:{port}/execute?format=json"
     req = urlrequest.Request(
-        url, data=command.encode("utf-8"), method="POST",
+        url,
+        data=command.encode("utf-8"),
+        method="POST",
         headers={"Content-Type": "text/plain"},
     )
     with urlrequest.urlopen(req, timeout=10) as resp:
@@ -315,8 +317,7 @@ class TestIntegration(unittest.TestCase):
                 proc.wait(timeout=5)
 
     def test_stale_lockfile_overwritten_on_startup(self):
-        core.write_lockfile(self.lockfile, pid=2 ** 30, port=5050,
-                            cwd=self.tmpdir, script="old.py")
+        core.write_lockfile(self.lockfile, pid=2**30, port=5050, cwd=self.tmpdir, script="old.py")
         env = dict(os.environ)
         env["PYTHONUNBUFFERED"] = "1"
         proc = subprocess.Popen(
@@ -393,8 +394,7 @@ class TestStatusAndClean(unittest.TestCase):
         self.assertIn("nothing to clean", result.stdout)
 
     def test_clean_stale_lockfile(self):
-        core.write_lockfile(self.lockfile, pid=2 ** 30, port=5050,
-                            cwd=self.tmpdir, script="x")
+        core.write_lockfile(self.lockfile, pid=2**30, port=5050, cwd=self.tmpdir, script="x")
         result = self._run_cli("--clean")
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertIn("stale", result.stdout)

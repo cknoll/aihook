@@ -18,8 +18,7 @@ class TestCore(unittest.TestCase):
         self._tmpdir.cleanup()
 
     def test_010_write_and_read_lockfile(self):
-        core.write_lockfile(self.lockfile, pid=os.getpid(), port=5050,
-                            cwd=self.tmpdir, script="test.py")
+        core.write_lockfile(self.lockfile, pid=os.getpid(), port=5050, cwd=self.tmpdir, script="test.py")
         self.assertTrue(os.path.exists(self.lockfile))
 
         # First line must be the explanatory header comment.
@@ -40,8 +39,7 @@ class TestCore(unittest.TestCase):
             self.assertIsInstance(data["proc_starttime"], int)
 
     def test_020_remove_lockfile_idempotent(self):
-        core.write_lockfile(self.lockfile, pid=os.getpid(), port=5050,
-                            cwd=self.tmpdir, script="x")
+        core.write_lockfile(self.lockfile, pid=os.getpid(), port=5050, cwd=self.tmpdir, script="x")
         core.remove_lockfile(self.lockfile)
         self.assertFalse(os.path.exists(self.lockfile))
         # Calling again must not raise.
@@ -49,13 +47,11 @@ class TestCore(unittest.TestCase):
 
     def test_030_stale_pid_detection(self):
         # Live pid: our own.
-        core.write_lockfile(self.lockfile, pid=os.getpid(), port=5050,
-                            cwd=self.tmpdir, script="x")
+        core.write_lockfile(self.lockfile, pid=os.getpid(), port=5050, cwd=self.tmpdir, script="x")
         self.assertFalse(core.lockfile_is_stale(self.lockfile))
 
         # Almost certainly-dead pid.
-        core.write_lockfile(self.lockfile, pid=2**30, port=5050,
-                            cwd=self.tmpdir, script="x")
+        core.write_lockfile(self.lockfile, pid=2**30, port=5050, cwd=self.tmpdir, script="x")
         self.assertTrue(core.lockfile_is_stale(self.lockfile))
 
     def test_040_pid_alive_helpers(self):
@@ -71,8 +67,7 @@ class TestCore(unittest.TestCase):
 
     @unittest.skipUnless(os.path.exists("/proc"), "requires /proc filesystem")
     def test_060_pid_reuse_detection(self):
-        core.write_lockfile(self.lockfile, pid=os.getpid(), port=5050,
-                            cwd=self.tmpdir, script="x")
+        core.write_lockfile(self.lockfile, pid=os.getpid(), port=5050, cwd=self.tmpdir, script="x")
         data = core.read_lockfile(self.lockfile)
         self.assertIn("proc_starttime", data)
 
@@ -93,7 +88,7 @@ class TestCore(unittest.TestCase):
         st2 = core._proc_starttime_jiffies(pid)
         self.assertIsNotNone(st1)
         self.assertEqual(st1, st2)
-        self.assertIsNone(core._proc_starttime_jiffies(2 ** 30))
+        self.assertIsNone(core._proc_starttime_jiffies(2**30))
 
 
 class TestExecuteCommand(unittest.TestCase):

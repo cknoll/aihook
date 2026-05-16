@@ -29,6 +29,7 @@ DEFAULT_PORT_RANGE = (5001, 5101)
 # Lock file helpers
 # ---------------------------------------------------------------------------
 
+
 def _pid_alive(pid):
     """Return True if a process with ``pid`` is still running."""
     if pid is None or pid <= 0:
@@ -57,7 +58,7 @@ def _proc_starttime_jiffies(pid):
         # Fields after ')': state ppid pgrp session tty_nr tpgid flags
         #   minflt cminflt majflt cmajflt utime stime cutime cstime
         #   priority nice num_threads itrealvalue starttime(19)
-        fields = data[idx + 2:].split()
+        fields = data[idx + 2 :].split()
         return int(fields[19])
     except Exception:
         return None
@@ -129,6 +130,7 @@ def lockfile_is_stale(path):
 # Port selection
 # ---------------------------------------------------------------------------
 
+
 def _parse_port_range(spec):
     try:
         lo, hi = spec.split("-", 1)
@@ -193,8 +195,10 @@ def find_free_port(explicit_port=None):
 # HTTP server + REPL
 # ---------------------------------------------------------------------------
 
+
 class ReusableHTTPServer(HTTPServer):
     """HTTP server that allows address reuse to avoid port conflicts on restart."""
+
     allow_reuse_address = True
 
 
@@ -252,9 +256,8 @@ class AgenticREPL:
                 raise
             except BaseException as e:
                 import traceback
-                exception_str = "".join(
-                    traceback.format_exception(type(e), e, e.__traceback__)
-                )
+
+                exception_str = "".join(traceback.format_exception(type(e), e, e.__traceback__))
                 if isinstance(e, SyntaxError) and "backslash" in str(e):
                     exception_str += (
                         "\naihook hint: f-strings cannot contain backslashes in Python < 3.12.\n"
@@ -321,12 +324,16 @@ class AgenticREPL:
                     if fmt == "json":
                         self.send_header("Content-Type", "application/json")
                         self.end_headers()
-                        self.wfile.write(json.dumps({
-                            "stdout": "REPL: Exiting\n",
-                            "stderr": "",
-                            "result_repr": None,
-                            "exception": None,
-                        }).encode("utf-8"))
+                        self.wfile.write(
+                            json.dumps(
+                                {
+                                    "stdout": "REPL: Exiting\n",
+                                    "stderr": "",
+                                    "result_repr": None,
+                                    "exception": None,
+                                }
+                            ).encode("utf-8")
+                        )
                     else:
                         self.send_header("Content-Type", "text/plain")
                         self.end_headers()
@@ -399,6 +406,7 @@ class AgenticREPL:
 # Public entry point
 # ---------------------------------------------------------------------------
 
+
 def _build_caller_namespace():
     """Build namespace from caller's f_globals and f_locals (locals override)."""
     frame = inspect.currentframe()
@@ -446,16 +454,15 @@ def agent_hook(namespace=None, port=None):
             sys.stderr.flush()
             sys.exit(1)
         else:
-            sys.stderr.write(
-                f"AIHOOK: stale lock file at {lockfile_path}, overwriting.\n"
-            )
+            sys.stderr.write(f"AIHOOK: stale lock file at {lockfile_path}, overwriting.\n")
             sys.stderr.flush()
 
     chosen_port = find_free_port(explicit_port=port)
     script = sys.argv[0] if sys.argv else ""
 
-    repl = AgenticREPL(namespace, port=chosen_port, lockfile_path=lockfile_path,
-                       cwd=cwd, script=script, callsite=callsite)
+    repl = AgenticREPL(
+        namespace, port=chosen_port, lockfile_path=lockfile_path, cwd=cwd, script=script, callsite=callsite
+    )
 
     # Ensure the lock file is removed even on abrupt termination.
     atexit.register(repl._cleanup)

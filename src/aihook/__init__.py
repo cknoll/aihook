@@ -21,7 +21,7 @@ except ImportError:
     cond3 = "_PYPROJECT_HOOKS_BUILD_BACKEND" in os.environ  # triggered by uv pip install
     cond4 = "PEP517_BUILD_BACKEND" in os.environ  # triggered during `python -m build`
 
-    if  any((cond1, cond2, cond3, cond4)):
+    if any((cond1, cond2, cond3, cond4)):
         pass
     else:
         # raise the original exception

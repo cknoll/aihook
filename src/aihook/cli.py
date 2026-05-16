@@ -64,9 +64,7 @@ def _resolve_port(args):
                 data = core.read_lockfile(lockfile_path)
             except Exception as e:
                 if time.monotonic() >= deadline:
-                    sys.stderr.write(
-                        f"aihook: could not parse lock file {lockfile_path}: {e}\n"
-                    )
+                    sys.stderr.write(f"aihook: could not parse lock file {lockfile_path}: {e}\n")
                     sys.exit(2)
                 time.sleep(0.1)
                 continue
@@ -90,9 +88,7 @@ def _resolve_port(args):
             else:
                 # Stale lock file: wait a bit in case it is being rewritten.
                 if time.monotonic() >= deadline:
-                    sys.stderr.write(
-                        f"aihook: lock file {lockfile_path} is stale (pid {pid} not alive).\n"
-                    )
+                    sys.stderr.write(f"aihook: lock file {lockfile_path} is stale (pid {pid} not alive).\n")
                     sys.exit(2)
 
         if time.monotonic() >= deadline:
@@ -112,8 +108,7 @@ def _send(port, command, timeout=30.0):
     """POST ``command`` to the /execute endpoint, request JSON response."""
     url = f"http://127.0.0.1:{port}/execute?format=json"
     data = command.encode("utf-8")
-    req = urlrequest.Request(url, data=data, method="POST",
-                             headers={"Content-Type": "text/plain"})
+    req = urlrequest.Request(url, data=data, method="POST", headers={"Content-Type": "text/plain"})
     try:
         with urlrequest.urlopen(req, timeout=timeout) as resp:
             body = resp.read().decode("utf-8")
@@ -225,39 +220,52 @@ def _build_parser():
         add_help=False,  # We'll add custom help
     )
     parser.add_argument(
-        "cmd", nargs="?",
+        "cmd",
+        nargs="?",
         help="Python code to execute. Use '-' to read from stdin.",
     )
     parser.add_argument(
-        "-p", "--port", type=int, default=None,
+        "-p",
+        "--port",
+        type=int,
+        default=None,
         help="Target port. Overrides lock-file discovery.",
     )
     parser.add_argument(
-        "-f", "--file", default=None,
+        "-f",
+        "--file",
+        default=None,
         help="Read code from FILE and send it. Useful for reusing snippets.",
     )
     parser.add_argument(
-        "--exit", action="store_true",
+        "--exit",
+        action="store_true",
         help="Send exit() to shut down the session.",
     )
     parser.add_argument(
-        "--wait", type=float, default=None,
+        "--wait",
+        type=float,
+        default=None,
         help=f"Seconds to wait for a lock file to appear (default: {DEFAULT_WAIT_SECONDS}s).",
     )
     parser.add_argument(
-        "--lockfile", default=None,
+        "--lockfile",
+        default=None,
         help="Path to the lock file (default: ./aihook-lock.yml).",
     )
     parser.add_argument(
-        "--status", action="store_true",
+        "--status",
+        action="store_true",
         help="Show status of the current aihook session and exit.",
     )
     parser.add_argument(
-        "--clean", action="store_true",
+        "--clean",
+        action="store_true",
         help="Remove a stale lock file and exit. Refuses if a session is active.",
     )
     parser.add_argument(
-        "--bootstrap", action="store_true",
+        "--bootstrap",
+        action="store_true",
         help=(
             f"Install SKILL.md for the target agent (see --agent) and create the learnings "
             f"directory, then exit. Aider: {AIDER_DESK_SKILL_DIR}/SKILL.md. "
@@ -265,19 +273,26 @@ def _build_parser():
         ),
     )
     parser.add_argument(
-        "--agent", default="aider", choices=["aider", "claude", "all"],
+        "--agent",
+        default="aider",
+        choices=["aider", "claude", "all"],
         help="Target agent for --bootstrap skill installation (default: aider).",
     )
     parser.add_argument(
-        "--allow-overwrite-SKILL.md", dest="allow_overwrite_SKILL_md", action="store_true",
+        "--allow-overwrite-SKILL.md",
+        dest="allow_overwrite_SKILL_md",
+        action="store_true",
         help="With --bootstrap: overwrite an existing skill file at the destination.",
     )
     parser.add_argument(
-        "--version", action="store_true",
+        "--version",
+        action="store_true",
         help="Show the version and exit.",
     )
     parser.add_argument(
-        "-h", "--help", action="store_true",
+        "-h",
+        "--help",
+        action="store_true",
         help="Show this help message and exit.",
     )
     return parser
@@ -392,6 +407,7 @@ def main(argv=None):
 
     if args.version:
         from .release import __version__
+
         print(f"aihook {__version__}")
         sys.exit(0)
 
