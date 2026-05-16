@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 
 
 name = "aihook"
-description = "..."
+description = "interactive embedded shell for agents "
 # my email domain is posteo.de
 authors=[{name = "Carsten Knoll", email = "firstname.lastname@domain.org"}]
 readme = "README.md"

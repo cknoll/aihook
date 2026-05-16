@@ -1,3 +1,4 @@
 ipydex
 pytest
 PyYAML
+platformdirs
