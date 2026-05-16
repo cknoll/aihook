@@ -1,0 +1,79 @@
+# This workflow will install Python dependencies, run tests and lint with a single version of Python
+# For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
+
+name: CI
+
+on:
+  push:
+    branches:
+    - main
+    - develop
+  pull_request:
+    branches:
+    - main
+    - develop
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    env:
+      # note: 'true' only works if no error occurred.
+      # DEBUG_WITH_SSH: 'true'
+      DEBUG_WITH_SSH: false
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+
+    # we use uv because it is much faster than normal pip
+    - name: Install uv
+      run: |
+        python -m pip install uv
+
+    - name: Installing requirements and package
+      run: |
+        # install this package
+        pwd
+        uv pip install --system -r requirements.txt
+        uv pip install --system -e .
+
+    - name: configure git
+      run: |
+        git config --global user.email "ci-user@ci-server.com"
+        git config --global user.name "CI User"
+        git config --global init.defaultBranch main
+
+    - name: run all tests
+      run: |
+        pytest
+
+
+    # debugging (set env.DEBUG_WITH_SSH to true (see above))
+    - name: Setup tmate session
+      if: env.DEBUG_WITH_SSH == 'true'
+      id: tmate
+      uses: mxschmitt/action-tmate@v3
+      with:
+        detached: true
+
+    # this exports the ad-hoc ssh-connection address to an text file such that it can be accessed via API
+    # this allows to connect to the debugging ssh server without manual copy-pasting
+    # see https://github.com/cknoll/github-ci-ssh-connect
+
+    - name: Capture tmate output
+      if: env.DEBUG_WITH_SSH == 'true'
+      run: |
+          echo $(cat /home/runner/work/_temp/_runner_file_commands/* | grep ::notice::SSH | awk '{print $NF}') > tmate-connection.txt
+
+    - name: Upload tmate logs as artifact
+      if: env.DEBUG_WITH_SSH == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: tmate-connection
+        path: tmate-connection.txt
