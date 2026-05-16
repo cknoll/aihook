@@ -1,4 +1,5 @@
 import os
+import sys
 import tempfile
 import unittest
 
@@ -93,3 +94,28 @@ class TestCore(unittest.TestCase):
         self.assertIsNotNone(st1)
         self.assertEqual(st1, st2)
         self.assertIsNone(core._proc_starttime_jiffies(2 ** 30))
+
+
+class TestExecuteCommand(unittest.TestCase):
+    def setUp(self):
+        self.repl = core.AgenticREPL(namespace={})
+
+    def test_100_runtime_exception_captured(self):
+        result = self.repl.execute_command("1/0")
+        self.assertIsNotNone(result["exception"])
+        self.assertIn("ZeroDivisionError", result["exception"])
+        self.assertEqual(result["stdout"], "")
+
+    def test_101_none_result_not_printed(self):
+        result = self.repl.execute_command("None")
+        self.assertIsNone(result["result_repr"])
+        self.assertEqual(result["stdout"], "")
+
+    @unittest.skipIf(sys.version_info >= (3, 12), "f-string backslash restriction lifted in 3.12")
+    def test_102_fstring_backslash_hint(self):
+        # In Python < 3.12, backslashes inside f-string expressions are a SyntaxError.
+        cmd = r"""f"{ '\n'.join(['a', 'b']) }" """
+        result = self.repl.execute_command(cmd)
+        self.assertIsNotNone(result["exception"])
+        self.assertIn("aihook hint", result["exception"])
+        self.assertIn("-f FILE", result["exception"])
