@@ -14,7 +14,7 @@ description = "..."
 # my email domain is posteo.de
 authors=[{name = "Carsten Knoll", email = "firstname.lastname@domain.org"}]
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.11"
 license = { text = "GNU General Public License v3 (GPLv3)" }
 
 dynamic = ["dependencies", "version"]
