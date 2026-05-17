@@ -88,6 +88,7 @@ def write_lockfile(path, pid, port, cwd, script):
         "start_time": timestamp,
         "script": str(script) if script is not None else "",
         "tool": "aihook",
+        "version": __version__,
     }
     proc_st = _proc_starttime_jiffies(int(pid))
     if proc_st is not None:

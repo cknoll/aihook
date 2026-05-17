@@ -123,8 +123,8 @@ for k, v in data.items():
 ## Session discovery
 
 On startup, the host writes `./aihook-lock.yml` in its current working
-directory, containing `pid`, `port`, `cwd`, `start_time`, `script`. The
-file is removed on clean shutdown. The banner also prints the source file and
+directory, containing `pid`, `port`, `cwd`, `start_time`, `script`,
+`version`. The file is removed on clean shutdown. The banner also prints the source file and
 line number where `agent_hook()` was called, which is useful when a script
 has multiple hook points.
 
@@ -141,6 +141,19 @@ If the host process is killed uncleanly (e.g. `SIGKILL`, OOM), the lock
 file may remain. A subsequent `agent_hook()` call in the same cwd will
 detect this automatically (pid not alive) and overwrite it. To clean up
 manually, just `rm ./aihook-lock.yml`.
+
+## Diagnosing a missing session
+
+If `aihook --status` reports no active session (or `--wait` times out),
+the host script likely crashed before or inside `agent_hook()`. Read the
+log file you redirected output to when launching the host:
+
+```bash
+cat aihook-host.log
+```
+
+This will show any Python traceback from the host process. There is no
+other signal — aihook does not write a crash breadcrumb file.
 
 ## CPython caveat: local-variable write-back
 
