@@ -13,8 +13,15 @@ over HTTP. Designed to be driven by an AI coding agent.
 
 ## When to use
 
+**Prefer aihook over ad-hoc `python -c` when:**
+- Setup is non-trivial (imports, monkey-patches, data loading) — pay the cost once, probe many times.
+- You expect more than 2–3 probes in a session.
+- You want to iterate on a snippet file without restarting the process.
+
+**Specific use cases:**
 - Debugging hard-to-reproduce runtime state.
-- Exploring real (not mocked) objects: shapes, keys, attributes.
+- Reverse-engineering an unfamiliar library against real objects.
+- Iterating on visual or binary output (render → inspect → tweak) without reloading.
 - Trying fixes against the live process before editing source files.
 
 ## Install the hook in the host script
