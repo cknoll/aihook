@@ -54,7 +54,7 @@ bound to `127.0.0.1` on a free port in `5001-5101` and blocks until
    the port is responding, then resolves the port automatically:
       ```bash
       aihook 'complex_var["nested"]["value"]'
-      aihook -f snippet.py
+      aihook -f aihook-snippet.py
       ```
    - Use `-f FILE` to reuse complex testing snippets after editing the host
    code — rerun the same file after each change. `aihook-snippet.py` is the
@@ -75,11 +75,11 @@ bound to `127.0.0.1` on a free port in `5001-5101` and blocks until
    ```
 
 **Iterative probe loop.** For anything beyond short snippets (1-5 lines),
-keep a `snippet.py` next to the host script and rerun it after each edit:
+keep an `aihook-snippet.py` next to the host script and rerun it after each edit:
 ```
-# edit snippet.py
-aihook -f snippet.py
-# observe, edit snippet.py again, repeat
+# edit aihook-snippet.py
+aihook -f aihook-snippet.py
+# observe, edit aihook-snippet.py again, repeat
 ```
 This is the primary workflow; the single-expression form is for quick
 probes only.
@@ -104,7 +104,7 @@ Exit code is non-zero if the remote code raised or wrote to stderr.
 
 `-f FILE` is opened by the CLI process (agent side), so relative paths
 resolve against the **agent's** current working directory, not the host
-script's. Use an absolute path (e.g. `-f "$PWD/snippet.py"`) if you are
+script's. Use an absolute path (e.g. `-f "$PWD/aihook-snippet.py"`) if you are
 not certain the cwds match, or if your shell tool chains `cd` commands
 unreliably.
 
@@ -121,7 +121,7 @@ aihook 'complex_var["nested"]'
 
 Multi-line snippet ending in an expression (Jupyter-style):
 ```python
-# snippet.py
+# aihook-snippet.py
 import json
 json.dumps(complex_var, indent=2)
 # -> '{\n  "nested": ...\n}'
@@ -130,9 +130,20 @@ json.dumps(complex_var, indent=2)
 Statements that are **not** expressions (`=`, `def`, `for`, `return`, etc.)
 do not produce output unless you add explicit `print()` calls:
 ```python
-# snippet.py — for loop needs explicit print
+# aihook-snippet.py — for loop needs explicit print
 for k, v in data.items():
     print(k, v)
+```
+
+## Working with binary output
+
+If a snippet produces binary data (e.g. a rendered image), write it to a
+file directly in the snippet and then read it with your agent's file-read
+tool:
+
+```python
+# aihook-snippet.py
+open("/tmp/aihook-out.png", "wb").write(render_graph())
 ```
 
 ## Session discovery
