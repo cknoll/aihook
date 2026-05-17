@@ -258,7 +258,7 @@ def _build_parser():
     parser.add_argument(
         "--vars",
         action="store_true",
-        help="List all names in the session namespace with their types, then exit.",
+        help="List all non-dunder names (not starting with __) in the session namespace with their types, sorted alphabetically, then exit.",
     )
     parser.add_argument(
         "--fresh",
