@@ -106,6 +106,26 @@ class TestExecuteCommand(unittest.TestCase):
         self.assertIsNone(result["result_repr"])
         self.assertEqual(result["stdout"], "")
 
+    def test_103_multiline_last_expr_auto_print(self):
+        ns = {"x": 21}
+        repl = core.AgenticREPL(namespace=ns)
+        result = repl.execute_command("y = x * 2\ny")
+        self.assertIsNone(result["exception"])
+        self.assertIn("42", result["stdout"])
+        self.assertEqual(ns["y"], 42)
+
+    def test_104_multiline_no_trailing_expr_silent(self):
+        repl = core.AgenticREPL(namespace={})
+        result = repl.execute_command("x = 42\ny = x + 1")
+        self.assertIsNone(result["exception"])
+        self.assertEqual(result["stdout"], "")
+
+    def test_105_multiline_last_expr_none_not_printed(self):
+        repl = core.AgenticREPL(namespace={})
+        result = repl.execute_command("x = [3, 1, 2]\nx.sort()")
+        self.assertIsNone(result["exception"])
+        self.assertEqual(result["stdout"], "")
+
     @unittest.skipIf(sys.version_info >= (3, 12), "f-string backslash restriction lifted in 3.12")
     def test_102_fstring_backslash_hint(self):
         # In Python < 3.12, backslashes inside f-string expressions are a SyntaxError.

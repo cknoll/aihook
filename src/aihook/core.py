@@ -2,6 +2,7 @@
 Core implementation of the aihook agent hook / HTTP REPL.
 """
 
+import ast
 import atexit
 import errno
 import inspect
@@ -240,13 +241,37 @@ class AgenticREPL:
             try:
                 code_obj = compile(command, "<agent>", "eval")
                 is_expr = True
+                head_code = None
+                last_expr_code = None
             except SyntaxError:
                 code_obj = None
                 is_expr = False
+                # Jupyter-style: if the last statement is an expression, split the
+                # block into a head (exec) and a tail expression (eval + auto-print).
+                head_code = None
+                last_expr_code = None
+                try:
+                    tree = ast.parse(command, "<agent>", "exec")
+                    if tree.body and isinstance(tree.body[-1], ast.Expr):
+                        last_node = tree.body[-1]
+                        head = ast.Module(body=tree.body[:-1], type_ignores=[])
+                        ast.fix_missing_locations(head)
+                        head_code = compile(head, "<agent>", "exec")
+                        expr_node = ast.Expression(body=last_node.value)
+                        ast.fix_missing_locations(expr_node)
+                        last_expr_code = compile(expr_node, "<agent>", "eval")
+                except SyntaxError:
+                    pass
 
             try:
                 if is_expr:
                     result = eval(code_obj, self.namespace)
+                    if result is not None:
+                        result_repr = repr(result)
+                        print(result_repr)
+                elif last_expr_code is not None:
+                    exec(head_code, self.namespace)
+                    result = eval(last_expr_code, self.namespace)
                     if result is not None:
                         result_repr = repr(result)
                         print(result_repr)

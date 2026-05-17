@@ -101,21 +101,27 @@ unreliably.
 
 ## Auto-print last expression
 
-If the submitted command parses as a **single expression**, its `repr()` is
-printed automatically (unless the value is `None`). You don't need to wrap
-probes in `print(...)`.
+The REPL auto-prints the last expression of any command (unless the value is
+`None`). You don't need to wrap probes in `print(...)`.
 
+Single expression:
 ```
 aihook 'complex_var["nested"]'
 # -> {'value': 42, 'items': [1, 2, 3, 4]}
 ```
 
-**Multi-statement blocks do NOT auto-print.** Statements (`=`, `def`, `for`,
-multi-line snippets) execute silently unless you add explicit `print()` calls.
-A probe that returns nothing is often a missing `print()`, not an empty result.
-
+Multi-line snippet ending in an expression (Jupyter-style):
 ```python
-# snippet.py — always use print() in multi-line snippets
+# snippet.py
+import json
+json.dumps(complex_var, indent=2)
+# -> '{\n  "nested": ...\n}'
+```
+
+Statements that are **not** expressions (`=`, `def`, `for`, `return`, etc.)
+do not produce output unless you add explicit `print()` calls:
+```python
+# snippet.py — for loop needs explicit print
 for k, v in data.items():
     print(k, v)
 ```
