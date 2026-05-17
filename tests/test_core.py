@@ -6,6 +6,7 @@ import unittest
 import yaml
 
 from aihook import core
+from aihook.cli import VARS_COMMAND
 
 
 class TestCore(unittest.TestCase):
@@ -125,6 +126,16 @@ class TestExecuteCommand(unittest.TestCase):
         result = repl.execute_command("x = [3, 1, 2]\nx.sort()")
         self.assertIsNone(result["exception"])
         self.assertEqual(result["stdout"], "")
+
+    def test_108_vars_command_lists_names_with_types(self):
+        ns = {"my_list": [1, 2], "my_int": 7}
+        repl = core.AgenticREPL(namespace=ns)
+        result = repl.execute_command(VARS_COMMAND)
+        self.assertIsNone(result["exception"])
+        self.assertIn("my_list", result["stdout"])
+        self.assertIn("list", result["stdout"])
+        self.assertIn("my_int", result["stdout"])
+        self.assertIn("int", result["stdout"])
 
     def test_106_fresh_does_not_mutate_namespace(self):
         ns = {"x": 10}

@@ -26,6 +26,8 @@ CLAUDE_CODE_COMMANDS_DIR = os.path.expanduser("~/.claude/commands")
 
 DEFAULT_WAIT_SECONDS = 180.0
 
+VARS_COMMAND = "[(k, type(v).__name__) for k, v in sorted(globals().items()) if not k.startswith('__')]"
+
 
 def _port_is_listening(port, timeout=1.0):
     """Return True if 127.0.0.1:port is accepting connections."""
@@ -197,6 +199,9 @@ def _clean_cmd(lockfile_path):
 
 def _read_command(args):
     """Determine the command source."""
+    if args.vars:
+        return VARS_COMMAND
+
     if args.exit:
         return "exit()"
 
@@ -249,6 +254,11 @@ def _build_parser():
         type=float,
         default=None,
         help=f"Seconds to wait for a lock file to appear (default: {DEFAULT_WAIT_SECONDS}s).",
+    )
+    parser.add_argument(
+        "--vars",
+        action="store_true",
+        help="List all names in the session namespace with their types, then exit.",
     )
     parser.add_argument(
         "--fresh",
