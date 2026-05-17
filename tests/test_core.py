@@ -126,6 +126,20 @@ class TestExecuteCommand(unittest.TestCase):
         self.assertIsNone(result["exception"])
         self.assertEqual(result["stdout"], "")
 
+    def test_106_fresh_does_not_mutate_namespace(self):
+        ns = {"x": 10}
+        repl = core.AgenticREPL(namespace=ns)
+        result = repl.execute_command("x = 99", fresh=True)
+        self.assertIsNone(result["exception"])
+        self.assertEqual(ns["x"], 10, "--fresh must not mutate the real namespace")
+
+    def test_107_non_fresh_mutates_namespace(self):
+        ns = {"x": 10}
+        repl = core.AgenticREPL(namespace=ns)
+        result = repl.execute_command("x = 99", fresh=False)
+        self.assertIsNone(result["exception"])
+        self.assertEqual(ns["x"], 99, "normal mode must mutate the real namespace")
+
     @unittest.skipIf(sys.version_info >= (3, 12), "f-string backslash restriction lifted in 3.12")
     def test_102_fstring_backslash_hint(self):
         # In Python < 3.12, backslashes inside f-string expressions are a SyntaxError.

@@ -220,12 +220,16 @@ class AgenticREPL:
 
     # -- execution ---------------------------------------------------------
 
-    def execute_command(self, command):
+    def execute_command(self, command, fresh=False):
         """
         Execute ``command`` in the managed namespace.
 
+        If ``fresh`` is True, run in a shallow copy of the namespace so that
+        the host's live state is not mutated by the snippet.
+
         Returns a dict with keys: stdout, stderr, result_repr, exception.
         """
+        ns = dict(self.namespace) if fresh else self.namespace
         old_stdout = sys.stdout
         old_stderr = sys.stderr
         sys.stdout = self.stdout_buffer
@@ -265,19 +269,19 @@ class AgenticREPL:
 
             try:
                 if is_expr:
-                    result = eval(code_obj, self.namespace)
+                    result = eval(code_obj, ns)
                     if result is not None:
                         result_repr = repr(result)
                         print(result_repr)
                 elif last_expr_code is not None:
-                    exec(head_code, self.namespace)
-                    result = eval(last_expr_code, self.namespace)
+                    exec(head_code, ns)
+                    result = eval(last_expr_code, ns)
                     if result is not None:
                         result_repr = repr(result)
                         print(result_repr)
                 else:
                     code_obj = compile(command, "<agent>", "exec")
-                    exec(code_obj, self.namespace)
+                    exec(code_obj, ns)
             except SystemExit:
                 raise
             except BaseException as e:
@@ -333,6 +337,7 @@ class AgenticREPL:
 
                 query = parse_qs(parsed.query or "")
                 fmt = (query.get("format", ["text"])[0] or "text").lower()
+                fresh = query.get("fresh", ["0"])[0] == "1"
 
                 content_length = int(self.headers.get("Content-Length", 0))
                 if content_length == 0:
@@ -368,7 +373,7 @@ class AgenticREPL:
                     threading.Thread(target=repl_instance.server.shutdown).start()
                     return
 
-                result = repl_instance.execute_command(command)
+                result = repl_instance.execute_command(command, fresh=fresh)
                 self.send_response(200)
                 if fmt == "json":
                     self.send_header("Content-Type", "application/json")

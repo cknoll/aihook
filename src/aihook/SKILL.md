@@ -83,6 +83,7 @@ probes only.
 - `aihook -f FILE` — send the contents of FILE as the command.
 - `aihook -f -` — same, but read the file from stdin.
 - `aihook -` — read code from stdin (also the default when stdin is piped).
+- `aihook --fresh '<code>'` — run code in a copy of the namespace; changes do not affect the host's live state. Safe for exploratory mutations.
 - `aihook --exit` — send `exit()` to shut the session down.
 - `aihook --status` — show whether a session is active, stale, or absent (exits 0 if healthy).
 - `aihook --clean` — remove a stale lock file; refuses if the session is active.

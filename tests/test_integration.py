@@ -316,6 +316,41 @@ class TestIntegration(unittest.TestCase):
                 proc.kill()
                 proc.wait(timeout=5)
 
+    def test_fresh_flag_does_not_persist(self):
+        env = dict(os.environ)
+        env["PYTHONUNBUFFERED"] = "1"
+        proc = subprocess.Popen(
+            [sys.executable, self.script],
+            cwd=self.tmpdir,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            env=env,
+        )
+        try:
+            data = _poll_lockfile(self.lockfile)
+            port = int(data["port"])
+            # Set a variable in the live namespace.
+            _send(port, "sentinel = 42")
+            # Run --fresh: rebind sentinel — must not affect the live namespace.
+            cli_result = subprocess.run(
+                [sys.executable, "-m", "aihook.cli", "--fresh", "sentinel = 999\nsentinel"],
+                cwd=self.tmpdir,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            self.assertEqual(cli_result.returncode, 0, msg=cli_result.stderr)
+            self.assertIn("999", cli_result.stdout)
+            # Live namespace must still hold the original value.
+            resp = _send(port, "sentinel")
+            self.assertIn("42", resp["stdout"])
+            _send(port, "exit()")
+            proc.wait(timeout=15)
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait(timeout=5)
+
     def test_stale_lockfile_overwritten_on_startup(self):
         core.write_lockfile(self.lockfile, pid=2**30, port=5050, cwd=self.tmpdir, script="old.py")
         env = dict(os.environ)

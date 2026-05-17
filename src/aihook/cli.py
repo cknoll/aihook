@@ -104,9 +104,11 @@ def _resolve_port(args):
         time.sleep(0.1)
 
 
-def _send(port, command, timeout=30.0):
+def _send(port, command, timeout=30.0, fresh=False):
     """POST ``command`` to the /execute endpoint, request JSON response."""
     url = f"http://127.0.0.1:{port}/execute?format=json"
+    if fresh:
+        url += "&fresh=1"
     data = command.encode("utf-8")
     req = urlrequest.Request(url, data=data, method="POST", headers={"Content-Type": "text/plain"})
     try:
@@ -247,6 +249,11 @@ def _build_parser():
         type=float,
         default=None,
         help=f"Seconds to wait for a lock file to appear (default: {DEFAULT_WAIT_SECONDS}s).",
+    )
+    parser.add_argument(
+        "--fresh",
+        action="store_true",
+        help="Run the snippet in a copy of the namespace; changes do not affect the host's live state.",
     )
     parser.add_argument(
         "--lockfile",
@@ -432,7 +439,7 @@ def main(argv=None):
         parser.error("no command given (pass a positional arg, -f FILE, stdin, or --exit)")
 
     port = _resolve_port(args)
-    result = _send(port, command)
+    result = _send(port, command, fresh=args.fresh)
 
     stdout = result.get("stdout", "") or ""
     stderr = result.get("stderr", "") or ""
